@@ -1,4 +1,8 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.EnhancedTouch;
+using Touch = UnityEngine.InputSystem.EnhancedTouch.Touch;
+using TouchPhase = UnityEngine.InputSystem.TouchPhase;
 
 namespace PitchRush
 {
@@ -17,6 +21,16 @@ namespace PitchRush
         // Touch input variables
         private Vector2 touchStartPos;
         private bool isSwiping = false;
+
+        private void OnEnable()
+        {
+            EnhancedTouchSupport.Enable();
+        }
+
+        private void OnDisable()
+        {
+            EnhancedTouchSupport.Disable();
+        }
 
         void Start()
         {
@@ -37,19 +51,20 @@ namespace PitchRush
 
         private void HandleInput()
         {
-            if (Input.touchCount > 0)
+            // Handling Touch Input via EnhancedTouch
+            if (Touch.activeTouches.Count > 0)
             {
-                Touch touch = Input.GetTouch(0);
+                Touch touch = Touch.activeTouches[0];
 
                 if (touch.phase == TouchPhase.Began)
                 {
                     isSwiping = true;
-                    touchStartPos = touch.position;
+                    touchStartPos = touch.screenPosition;
                 }
                 else if (touch.phase == TouchPhase.Moved && isSwiping)
                 {
                     // Calculate horizontal movement based on delta
-                    float deltaX = touch.deltaPosition.x;
+                    float deltaX = touch.delta.x;
                     // Normalize delta slightly to make movement smooth across different screen sizes
                     float moveAmount = (deltaX / Screen.width) * horizontalSpeed;
 
@@ -59,7 +74,7 @@ namespace PitchRush
                     transform.position = newPos;
 
                     // Check for jump (vertical swipe)
-                    Vector2 touchDelta = touch.position - touchStartPos;
+                    Vector2 touchDelta = touch.screenPosition - touchStartPos;
                     if (touchDelta.y > 50f && isGrounded) // Threshold for jump
                     {
                         Jump();
@@ -73,20 +88,33 @@ namespace PitchRush
             }
             else
             {
-                // Keyboard fallback for testing in editor
-                float horizontalInput = Input.GetAxis("Horizontal");
-                if (Mathf.Abs(horizontalInput) > 0.01f)
+                // Keyboard fallback for testing in editor using New Input System
+                if (Keyboard.current != null)
                 {
-                    Vector3 newPos = transform.position + new Vector3(horizontalInput * horizontalSpeed * Time.deltaTime, 0, 0);
-                    newPos.x = Mathf.Clamp(newPos.x, leftBoundary, rightBoundary);
-                    transform.position = newPos;
-                }
+                    float horizontalInput = 0f;
 
-                if (Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.UpArrow))
-                {
-                    if (isGrounded)
+                    if (Keyboard.current.aKey.isPressed || Keyboard.current.leftArrowKey.isPressed)
                     {
-                        Jump();
+                        horizontalInput = -1f;
+                    }
+                    else if (Keyboard.current.dKey.isPressed || Keyboard.current.rightArrowKey.isPressed)
+                    {
+                        horizontalInput = 1f;
+                    }
+
+                    if (Mathf.Abs(horizontalInput) > 0.01f)
+                    {
+                        Vector3 newPos = transform.position + new Vector3(horizontalInput * horizontalSpeed * Time.deltaTime, 0, 0);
+                        newPos.x = Mathf.Clamp(newPos.x, leftBoundary, rightBoundary);
+                        transform.position = newPos;
+                    }
+
+                    if (Keyboard.current.spaceKey.wasPressedThisFrame || Keyboard.current.upArrowKey.wasPressedThisFrame)
+                    {
+                        if (isGrounded)
+                        {
+                            Jump();
+                        }
                     }
                 }
             }
@@ -101,7 +129,6 @@ namespace PitchRush
         private void OnCollisionEnter(Collision collision)
         {
             // Simple check to see if we hit the ground
-            // In a real game, checking collision normal or using raycast is better
             if (collision.gameObject.CompareTag("Ground"))
             {
                 isGrounded = true;
