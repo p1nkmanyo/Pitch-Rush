@@ -3,21 +3,32 @@ using UnityEngine.InputSystem;
 
 namespace PitchRush
 {
+    public enum BallState { Normal, HeavyIron, LightPingPong }
+
     [RequireComponent(typeof(Rigidbody))]
     public class PlayerController : MonoBehaviour
     {
         [Header("Movement Settings")]
-        public float forwardSpeed = 10f;
-        public float horizontalSpeed = 20f; // Increased for snappier follow
+        public float baseForwardSpeed = 10f;
+        public float maxForwardSpeed = 30f;
+        public float speedIncreaseRate = 0.1f; // How much speed increases per second
+        public float horizontalSpeed = 20f;
         public float leftBoundary = -4.5f;
         public float rightBoundary = 4.5f;
 
-        [Header("Jump Settings")]
-        public float jumpForce = 6f;
-        public float swipeUpThreshold = 50f; // How far to swipe up to jump
+        [Header("Jump & Physics Settings")]
+        public float jumpVelocity = 8f; // Using velocity for consistent jump heights regardless of mass
+        public float fallMultiplier = 2.5f; // Makes the ball fall faster (snappy jump)
+        public float swipeUpThreshold = 50f;
+
+        [Header("State Settings")]
+        public BallState currentState = BallState.Normal;
+        private Vector3 defaultScale;
+        private float defaultMass;
 
         private Rigidbody rb;
         private bool isGrounded = true;
+        private float currentForwardSpeed;
 
         // Pointer tracking logic
         private float targetX;
@@ -28,24 +39,68 @@ namespace PitchRush
         {
             rb = GetComponent<Rigidbody>();
             targetX = transform.position.x;
+            currentForwardSpeed = baseForwardSpeed;
+            defaultScale = transform.localScale;
+            defaultMass = rb.mass;
+        }
+
+        public void ChangeState(BallState newState)
+        {
+            currentState = newState;
+            switch (currentState)
+            {
+                case BallState.Normal:
+                    transform.localScale = defaultScale;
+                    rb.mass = defaultMass;
+                    break;
+                case BallState.HeavyIron:
+                    transform.localScale = defaultScale * 2f; // Big ball
+                    rb.mass = defaultMass * 5f; // Heavy
+                    break;
+                case BallState.LightPingPong:
+                    transform.localScale = defaultScale * 0.5f; // Small ball
+                    rb.mass = defaultMass * 0.2f; // Light
+                    break;
+            }
         }
 
         void Update()
         {
             HandleInput();
+            UpdateSpeed();
         }
 
         void FixedUpdate()
         {
             // Move forward automatically
-            Vector3 forwardMovement = transform.forward * forwardSpeed * Time.fixedDeltaTime;
+            Vector3 forwardMovement = transform.forward * currentForwardSpeed * Time.fixedDeltaTime;
 
             // Smoothly move X position towards the target X
             float newX = Mathf.Lerp(rb.position.x, targetX, horizontalSpeed * Time.fixedDeltaTime);
 
+            // Apply Custom Gravity (Fall Faster)
+            if (rb.velocity.y < 0)
+            {
+                rb.velocity += Vector3.up * Physics.gravity.y * (fallMultiplier - 1) * Time.fixedDeltaTime;
+            }
+
             // Combine forward and horizontal movement
             Vector3 newPosition = new Vector3(newX, rb.position.y, rb.position.z) + forwardMovement;
             rb.MovePosition(newPosition);
+        }
+
+        private void UpdateSpeed()
+        {
+            // Gradually increase speed over time up to max speed
+            if (currentForwardSpeed < maxForwardSpeed)
+            {
+                currentForwardSpeed += speedIncreaseRate * Time.deltaTime;
+            }
+        }
+
+        public float GetCurrentSpeed()
+        {
+            return currentForwardSpeed;
         }
 
         private void HandleInput()
@@ -68,13 +123,8 @@ namespace PitchRush
                     Vector2 currentPointerPos = Pointer.current.position.ReadValue();
 
                     // 1. HORIZONTAL TRACKING
-                    // Convert screen X coordinate (0 to Screen.width) to a normalized value (-1 to 1)
                     float normalizedX = (currentPointerPos.x / Screen.width) * 2f - 1f;
-
-                    // Map the normalized value to our world boundaries
-                    // If pointer is at left edge, target is leftBoundary. If at right edge, rightBoundary.
                     targetX = Mathf.Lerp(leftBoundary, rightBoundary, (normalizedX + 1f) / 2f);
-                    // Ensure we don't go out of bounds
                     targetX = Mathf.Clamp(targetX, leftBoundary, rightBoundary);
 
                     // 2. JUMP TRACKING (Vertical Swipe)
@@ -82,7 +132,6 @@ namespace PitchRush
                     if (deltaY > swipeUpThreshold && isGrounded)
                     {
                         Jump();
-                        // Reset start pos so it doesn't jump multiple times from one long swipe
                         pointerStartPos = currentPointerPos;
                     }
                 }
@@ -114,15 +163,13 @@ namespace PitchRush
 
         private void Jump()
         {
-            // Zero out vertical velocity before jumping to ensure consistent jump height
             rb.velocity = new Vector3(rb.velocity.x, 0f, rb.velocity.z);
-            rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+            rb.AddForce(Vector3.up * jumpVelocity, ForceMode.VelocityChange);
             isGrounded = false;
         }
 
         private void OnCollisionEnter(Collision collision)
         {
-            // Simple check to see if we hit the ground
             if (collision.gameObject.CompareTag("Ground"))
             {
                 isGrounded = true;
