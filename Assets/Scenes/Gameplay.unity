@@ -602,10 +602,16 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 03e29ba6d16d3b64fbec0076c575a0e6, type: 3}
   m_Name:
-  m_EditorClassIdentifier: Assembly-CSharp::PitchRush.PlayerController
-    horizontalSpeed: 15
-    leftBoundary: -4.5
+  m_EditorClassIdentifier:
+  baseForwardSpeed: 10
+  maxForwardSpeed: 30
+  speedIncreaseRate: 0.1
+  horizontalSpeed: 15
+  leftBoundary: -4.5
   rightBoundary: 4.5
+  jumpVelocity: 8
+  fallMultiplier: 2.5
+  swipeUpThreshold: 50
 --- !u!1 &1602721982
 GameObject:
   m_ObjectHideFlags: 0
@@ -634,8 +640,8 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 1b90e247334a62346b75285f399746b1, type: 3}
   m_Name:
-  m_EditorClassIdentifier: Assembly-CSharp::PitchRush.TrackManager
-  trackPrefab:{fileID: 2006833260569599734, guid: d1d61c7231d6423409e1e071a4dbdf4a, type: 3}
+  m_EditorClassIdentifier:
+  trackPrefab: {fileID: 2006833260569599734, guid: d1d61c7231d6423409e1e071a4dbdf4a, type: 3}
   trackLength: 20
   initialTracksToSpawn: 5
   playerTransform: {fileID: 1381093557}
@@ -682,7 +688,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 83458087b85f279499270657a01d3274, type: 3}
   m_Name:
-  m_EditorClassIdentifier: Assembly-CSharp::PitchRush.GameManager
+  m_EditorClassIdentifier:
   scoreText: {fileID: 0}
   coinsText: {fileID: 0}
   gameOverPanel: {fileID: 0}

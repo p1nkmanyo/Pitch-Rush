@@ -73,10 +73,12 @@ namespace PitchRush
         void FixedUpdate()
         {
             // Move forward automatically
-            Vector3 forwardMovement = transform.forward * currentForwardSpeed * Time.fixedDeltaTime;
+            Vector3 forwardVelocity = transform.forward * currentForwardSpeed;
 
             // Smoothly move X position towards the target X
             float newX = Mathf.Lerp(rb.position.x, targetX, horizontalSpeed * Time.fixedDeltaTime);
+            Vector3 targetPosition = new Vector3(newX, rb.position.y, rb.position.z);
+            Vector3 horizontalVelocity = (targetPosition - rb.position) / Time.fixedDeltaTime;
 
             // Apply Custom Gravity (Fall Faster)
             if (rb.linearVelocity.y < 0)
@@ -84,12 +86,8 @@ namespace PitchRush
                 rb.linearVelocity += Vector3.up * Physics.gravity.y * (fallMultiplier - 1) * Time.fixedDeltaTime;
             }
 
-            // Calculate desired horizontal and forward positions.
-            // We DO NOT set Y to rb.position.y directly into MovePosition because that breaks gravity/jumping.
-            Vector3 targetPosition = new Vector3(newX, rb.position.y, rb.position.z) + forwardMovement;
-
-            // Move strictly horizontally and forward, allowing physics engine to handle Y axis independently
-            rb.MovePosition(new Vector3(targetPosition.x, rb.position.y, targetPosition.z));
+            // Combine horizontal, forward, and preserve the vertical velocity for jumping/gravity
+            rb.linearVelocity = new Vector3(horizontalVelocity.x, rb.linearVelocity.y, forwardVelocity.z);
         }
 
         private void UpdateSpeed()
