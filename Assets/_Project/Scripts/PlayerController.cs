@@ -79,9 +79,9 @@ namespace PitchRush
             float newX = Mathf.Lerp(rb.position.x, targetX, horizontalSpeed * Time.fixedDeltaTime);
 
             // Apply Custom Gravity (Fall Faster)
-            if (rb.velocity.y < 0)
+            if (rb.linearVelocity.y < 0)
             {
-                rb.velocity += Vector3.up * Physics.gravity.y * (fallMultiplier - 1) * Time.fixedDeltaTime;
+                rb.linearVelocity += Vector3.up * Physics.gravity.y * (fallMultiplier - 1) * Time.fixedDeltaTime;
             }
 
             // Combine forward and horizontal movement
@@ -163,7 +163,8 @@ namespace PitchRush
 
         private void Jump()
         {
-            rb.velocity = new Vector3(rb.velocity.x, 0f, rb.velocity.z);
+            // Zero out vertical velocity before jumping to ensure consistent jump height
+            rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
             rb.AddForce(Vector3.up * jumpVelocity, ForceMode.VelocityChange);
             isGrounded = false;
         }

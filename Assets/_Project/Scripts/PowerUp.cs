@@ -4,15 +4,9 @@ namespace PitchRush
 {
     public class PowerUp : MonoBehaviour
     {
-        public BallState stateToApply = BallState.HeavyIron;
-        public float duration = 5f;
-        public float rotationSpeed = 100f;
-
-        void Update()
-        {
-            // Spin visual
-            transform.Rotate(Vector3.up * rotationSpeed * Time.deltaTime);
-        }
+        [Header("Power Up Settings")]
+        public BallState powerUpState; // HeavyIron or LightPingPong
+        public float duration = 10f;
 
         private void OnTriggerEnter(Collider other)
         {
@@ -21,14 +15,16 @@ namespace PitchRush
                 PlayerController player = other.GetComponent<PlayerController>();
                 if (player != null)
                 {
-                    player.ChangeState(stateToApply);
+                    player.ChangeState(powerUpState);
 
-                    // Tell GameManager to reset state after duration
-                    GameManager.Instance.StartPowerUpTimer(player, duration);
+                    if (GameManager.Instance != null)
+                    {
+                        GameManager.Instance.StartPowerUpTimer(player, duration);
+                    }
+
+                    // Add visual/audio effect here if desired
+                    Destroy(gameObject);
                 }
-
-                // Play particle effect/sound here
-                Destroy(gameObject);
             }
         }
     }
