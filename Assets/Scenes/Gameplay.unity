@@ -603,10 +603,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 03e29ba6d16d3b64fbec0076c575a0e6, type: 3}
   m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::PitchRush.PlayerController
-  forwardSpeed: 10
-  horizontalSpeed: 15
-  jumpForce: 5
-  leftBoundary: -4.5
+    horizontalSpeed: 15
+    leftBoundary: -4.5
   rightBoundary: 4.5
 --- !u!1 &1602721982
 GameObject:
@@ -637,8 +635,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1b90e247334a62346b75285f399746b1, type: 3}
   m_Name:
   m_EditorClassIdentifier: Assembly-CSharp::PitchRush.TrackManager
-  trackPrefab:
-  - {fileID: 2006833260569599734, guid: d1d61c7231d6423409e1e071a4dbdf4a, type: 3}
+  trackPrefab:{fileID: 2006833260569599734, guid: d1d61c7231d6423409e1e071a4dbdf4a, type: 3}
   trackLength: 20
   initialTracksToSpawn: 5
   playerTransform: {fileID: 1381093557}

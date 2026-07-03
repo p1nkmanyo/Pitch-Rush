@@ -84,9 +84,12 @@ namespace PitchRush
                 rb.linearVelocity += Vector3.up * Physics.gravity.y * (fallMultiplier - 1) * Time.fixedDeltaTime;
             }
 
-            // Combine forward and horizontal movement
-            Vector3 newPosition = new Vector3(newX, rb.position.y, rb.position.z) + forwardMovement;
-            rb.MovePosition(newPosition);
+            // Calculate desired horizontal and forward positions.
+            // We DO NOT set Y to rb.position.y directly into MovePosition because that breaks gravity/jumping.
+            Vector3 targetPosition = new Vector3(newX, rb.position.y, rb.position.z) + forwardMovement;
+
+            // Move strictly horizontally and forward, allowing physics engine to handle Y axis independently
+            rb.MovePosition(new Vector3(targetPosition.x, rb.position.y, targetPosition.z));
         }
 
         private void UpdateSpeed()
