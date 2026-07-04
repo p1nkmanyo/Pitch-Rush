@@ -62,17 +62,10 @@ namespace PitchRush
                         return;
                     }
 
-                    // For touch input, we can rely on Pointer.current.pointerId with IsPointerOverGameObject
+                    // For touch input, we check if there are any active touches and test the first one
                     // (IsPointerOverGameObject without params checks the primary pointer/mouse,
                     // passing pointerId checks the specific touch)
-                    if (EventSystem.current != null && Pointer.current is UnityEngine.InputSystem.Controls.TouchControl touch)
-                    {
-                        if (EventSystem.current.IsPointerOverGameObject(touch.touchId.ReadValue()))
-                        {
-                            return;
-                        }
-                    }
-                    else if (EventSystem.current != null && Touchscreen.current != null && Touchscreen.current.touches.Count > 0)
+                    if (EventSystem.current != null && Touchscreen.current != null && Touchscreen.current.touches.Count > 0)
                     {
                         if (EventSystem.current.IsPointerOverGameObject(Touchscreen.current.touches[0].touchId.ReadValue()))
                         {
