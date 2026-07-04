@@ -13,8 +13,14 @@ namespace PitchRush
         public Text coinsText;
         public GameObject gameOverPanel;
 
+        [Header("Player Spawning")]
+        public GameObject[] playerSkinPrefabs; // Expected names: "Normal", "HeavyIron", "LightPingPong"
+        public Vector3 playerSpawnPosition = new Vector3(0, 1f, 0); // Slight elevation to avoid clipping
+
         [Header("References")]
-        public Transform playerTransform;
+        public Transform playerTransform; // Dynamically assigned now
+        public CameraFollow cameraFollow;
+        public TrackManager trackManager;
 
         private int currentCoins = 0;
         private float score = 0f;
@@ -39,7 +45,49 @@ namespace PitchRush
             {
                 gameOverPanel.SetActive(false);
             }
+
+            SpawnPlayer();
             UpdateUI();
+        }
+
+        private void SpawnPlayer()
+        {
+            string selectedSkin = PlayerPrefs.GetString("SelectedSkin", "Normal");
+            GameObject prefabToSpawn = null;
+
+            if (playerSkinPrefabs != null && playerSkinPrefabs.Length > 0)
+            {
+                foreach (GameObject prefab in playerSkinPrefabs)
+                {
+                    if (prefab != null && prefab.name == selectedSkin)
+                    {
+                        prefabToSpawn = prefab;
+                        break;
+                    }
+                }
+
+                // Fallback to first prefab if not found
+                if (prefabToSpawn == null)
+                {
+                    prefabToSpawn = playerSkinPrefabs[0];
+                }
+            }
+
+            if (prefabToSpawn != null)
+            {
+                GameObject playerObj = Instantiate(prefabToSpawn, playerSpawnPosition, Quaternion.identity);
+                playerTransform = playerObj.transform;
+
+                if (cameraFollow == null) cameraFollow = FindObjectOfType<CameraFollow>();
+                if (trackManager == null) trackManager = FindObjectOfType<TrackManager>();
+
+                if (cameraFollow != null) cameraFollow.target = playerTransform;
+                if (trackManager != null) trackManager.playerTransform = playerTransform;
+            }
+            else
+            {
+                Debug.LogWarning("No player skin prefabs assigned in GameManager!");
+            }
         }
 
         private void Update()
@@ -69,12 +117,18 @@ namespace PitchRush
             isGameOver = true;
             Time.timeScale = 0f; // Pause the game
 
+            // Save coins
+            int totalCoins = PlayerPrefs.GetInt("TotalCoins", 0);
+            totalCoins += currentCoins;
+            PlayerPrefs.SetInt("TotalCoins", totalCoins);
+            PlayerPrefs.Save();
+
             if (gameOverPanel != null)
             {
                 gameOverPanel.SetActive(true);
             }
 
-            Debug.Log($"Game Over! Score: {Mathf.FloorToInt(score)}, Coins: {currentCoins}");
+            Debug.Log($"Game Over! Score: {Mathf.FloorToInt(score)}, Coins: {currentCoins}. Total Coins: {totalCoins}");
         }
 
         public void RestartGame()
