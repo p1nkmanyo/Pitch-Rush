@@ -95,11 +95,12 @@ namespace PitchRush
 
                 if (Pointer.current.press.isPressed)
                 {
+                    Vector2 delta = currentPointerPos - swipeStartPos;
+                    bool isVerticalSwipeIntent = isSwiping && Mathf.Abs(delta.y) > Mathf.Abs(delta.x) && delta.y > 10f;
+
                     // A. Vertical Swipe Detection for Jump (instant during drag)
                     if (isSwiping)
                     {
-                        Vector2 delta = currentPointerPos - swipeStartPos;
-                        
                         // We only register jump if they swipe UP specifically
                         if (delta.y > swipeThreshold && Mathf.Abs(delta.y) > Mathf.Abs(delta.x))
                         {
@@ -113,9 +114,13 @@ namespace PitchRush
 
                     // B. Direct Screen-Position Steering (Smooth Continuous Drag)
                     // Map screen X coordinate (0 to Screen.width) to world boundaries (leftBoundary to rightBoundary)
-                    float normalizedX = currentPointerPos.x / Screen.width;
-                    targetX = Mathf.Lerp(leftBoundary, rightBoundary, normalizedX);
-                    targetX = Mathf.Clamp(targetX, leftBoundary, rightBoundary);
+                    // Skip steering updates during a vertical swipe gesture to prevent horizontal drift/centering
+                    if (!isVerticalSwipeIntent)
+                    {
+                        float normalizedX = currentPointerPos.x / Screen.width;
+                        targetX = Mathf.Lerp(leftBoundary, rightBoundary, normalizedX);
+                        targetX = Mathf.Clamp(targetX, leftBoundary, rightBoundary);
+                    }
                 }
 
                 if (Pointer.current.press.wasReleasedThisFrame)
