@@ -17,10 +17,18 @@ namespace PitchRush
         public GameObject[] playerSkinPrefabs; // Expected names: "Normal", "HeavyIron", "LightPingPong"
         public Vector3 playerSpawnPosition = new Vector3(0, 1f, 0); // Slight elevation to avoid clipping
 
+        [Header("Progression Settings")]
+        public float baseSpeed = 10f;
+        public float maxSpeed = 30f;
+        public float accelerationRate = 0.5f;
+
         [Header("References")]
         public Transform playerTransform; // Dynamically assigned now
         public CameraFollow cameraFollow;
         public TrackManager trackManager;
+
+        public float CurrentSpeed { get; private set; }
+        public bool IsGameActive => !isGameOver;
 
         private int currentCoins = 0;
         private float score = 0f;
@@ -41,6 +49,8 @@ namespace PitchRush
         private void Start()
         {
             Time.timeScale = 1f; // Ensure time is running
+            CurrentSpeed = baseSpeed;
+
             if (gameOverPanel != null)
             {
                 gameOverPanel.SetActive(false);
@@ -93,6 +103,9 @@ namespace PitchRush
         private void Update()
         {
             if (isGameOver || playerTransform == null) return;
+
+            // Speed progression
+            CurrentSpeed = Mathf.MoveTowards(CurrentSpeed, maxSpeed, accelerationRate * Time.deltaTime);
 
             // Score increases based on distance traveled (Z axis)
             // Assuming player starts at Z=0
