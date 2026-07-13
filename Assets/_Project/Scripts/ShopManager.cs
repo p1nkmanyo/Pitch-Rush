@@ -1,22 +1,22 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace PitchRush
+// Removed namespace PitchRush so local UI scripts can access ShopManager without errors
+
+[System.Serializable]
+public class SkinItem
 {
-    [System.Serializable]
-    public class SkinItem
-    {
-        public string skinName; // e.g., "Normal", "HeavyIron", "LightPingPong"
-        public int price;
-    }
+    public string skinName; // e.g., "Normal", "HeavyIron", "LightPingPong"
+    public int price;
+}
 
-    public class ShopManager : MonoBehaviour
-    {
-        [Header("UI Elements")]
-        public Text totalCoinsText;
+public class ShopManager : MonoBehaviour
+{
+    [Header("UI Elements")]
+    public Text totalCoinsText;
 
-        [Header("Skins Data")]
-        public SkinItem[] skins;
+    [Header("Skins Data")]
+    public SkinItem[] skins;
 
         private void OnEnable()
         {
@@ -76,14 +76,13 @@ namespace PitchRush
             }
         }
 
-        public void SelectSkin(string skinName)
-        {
-            // We assume calling this means either it's bought or unlocked
-            PlayerPrefs.SetString("SelectedSkin", skinName);
-            PlayerPrefs.Save();
-            Debug.Log($"Selected skin: {skinName}");
+    public void SelectSkin(string skinName)
+    {
+        // We assume calling this means either it's bought or unlocked
+        PlayerPrefs.SetString("SelectedSkin", skinName);
+        PlayerPrefs.Save();
+        Debug.Log($"Selected skin: {skinName}");
 
-            // Here you could update UI to show which skin is selected (e.g., enable a checkmark)
-        }
+        // Here you could update UI to show which skin is selected (e.g., enable a checkmark)
     }
 }
