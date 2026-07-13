@@ -7,28 +7,26 @@ namespace PitchRush
     [RequireComponent(typeof(Rigidbody))]
     public class PlayerController : MonoBehaviour
     {
-        [Header("Movement Settings")]
-        public float forwardSpeed = 10f;
-        public float horizontalSpeed = 20f; // Increased for snappier follow
-        public float leftBoundary = -4.5f;
-        public float rightBoundary = 4.5f;
+        [Header("Lane Settings")]
+        [Tooltip("0 = Left, 1 = Center, 2 = Right")]
+        public int currentLane = 1;
+        public float laneDistance = 3f; // Distance between lanes
+        public float horizontalSpeed = 20f; // Speed of lane changing
 
-        [Header("Jump Settings")]
+        [Header("Jump & Input Settings")]
         public float jumpForce = 6f;
-        public float swipeUpThreshold = 50f; // How far to swipe up to jump
+        public float swipeThreshold = 50f; // Minimum pixels to register a swipe
 
         private Rigidbody rb;
         private bool isGrounded = true;
 
         // Pointer tracking logic
-        private float targetX;
-        private bool isHolding = false;
-        private Vector2 pointerStartPos;
+        private bool isSwiping = false;
+        private Vector2 swipeStartPos;
 
         void Start()
         {
             rb = GetComponent<Rigidbody>();
-            targetX = transform.position.x;
         }
 
         void Update()
@@ -38,96 +36,112 @@ namespace PitchRush
 
         void FixedUpdate()
         {
-            // Move forward automatically
-            Vector3 forwardMovement = transform.forward * forwardSpeed * Time.fixedDeltaTime;
+            if (GameManager.Instance != null && !GameManager.Instance.IsGameActive)
+                return;
 
-            // Smoothly move X position towards the target X
-            float newX = Mathf.Lerp(rb.position.x, targetX, horizontalSpeed * Time.fixedDeltaTime);
+            // Calculate forward movement based on GameManager's progression speed
+            float currentForwardSpeed = GameManager.Instance != null ? GameManager.Instance.CurrentSpeed : 10f;
+            Vector3 forwardMovement = transform.forward * currentForwardSpeed * Time.fixedDeltaTime;
 
-            // Combine forward and horizontal movement
+            // Calculate target X position based on current lane
+            // Center is 0. Left is -laneDistance. Right is +laneDistance.
+            float targetX = (currentLane - 1) * laneDistance;
+
+            // Smoothly move X position towards target using Mathf.MoveTowards for snappy but smooth lane changes
+            float newX = Mathf.MoveTowards(rb.position.x, targetX, horizontalSpeed * Time.fixedDeltaTime);
+
+            // Apply movement safely using MovePosition
             Vector3 newPosition = new Vector3(newX, rb.position.y, rb.position.z) + forwardMovement;
             rb.MovePosition(newPosition);
         }
 
         private void HandleInput()
         {
-            // Read Pointer (Mouse click & drag, or Touch on mobile)
+            if (GameManager.Instance != null && !GameManager.Instance.IsGameActive)
+                return;
+
+            // 1. TOUCH & MOUSE SWIPE INPUT
             if (Pointer.current != null)
             {
                 if (Pointer.current.press.wasPressedThisFrame)
                 {
-                    // Check if pointer is over UI element
+                    // Prevent input bleed through UI
                     if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
-                    {
                         return;
-                    }
 
-                    // For touch input, we check if there are any active touches and test the first one
-                    // (IsPointerOverGameObject without params checks the primary pointer/mouse,
-                    // passing pointerId checks the specific touch)
                     if (EventSystem.current != null && Touchscreen.current != null && Touchscreen.current.touches.Count > 0)
                     {
                         if (EventSystem.current.IsPointerOverGameObject(Touchscreen.current.touches[0].touchId.ReadValue()))
-                        {
                             return;
-                        }
                     }
 
-                    isHolding = true;
-                    pointerStartPos = Pointer.current.position.ReadValue();
+                    isSwiping = true;
+                    swipeStartPos = Pointer.current.position.ReadValue();
                 }
                 else if (Pointer.current.press.wasReleasedThisFrame)
                 {
-                    isHolding = false;
-                }
-
-                if (isHolding)
-                {
-                    Vector2 currentPointerPos = Pointer.current.position.ReadValue();
-
-                    // 1. HORIZONTAL TRACKING
-                    // Convert screen X coordinate (0 to Screen.width) to a normalized value (-1 to 1)
-                    float normalizedX = (currentPointerPos.x / Screen.width) * 2f - 1f;
-
-                    // Map the normalized value to our world boundaries
-                    // If pointer is at left edge, target is leftBoundary. If at right edge, rightBoundary.
-                    targetX = Mathf.Lerp(leftBoundary, rightBoundary, (normalizedX + 1f) / 2f);
-                    // Ensure we don't go out of bounds
-                    targetX = Mathf.Clamp(targetX, leftBoundary, rightBoundary);
-
-                    // 2. JUMP TRACKING (Vertical Swipe)
-                    float deltaY = currentPointerPos.y - pointerStartPos.y;
-                    if (deltaY > swipeUpThreshold && isGrounded)
+                    if (isSwiping)
                     {
-                        Jump();
-                        // Reset start pos so it doesn't jump multiple times from one long swipe
-                        pointerStartPos = currentPointerPos;
+                        Vector2 swipeEndPos = Pointer.current.position.ReadValue();
+                        ProcessSwipe(swipeStartPos, swipeEndPos);
                     }
+                    isSwiping = false;
                 }
             }
 
-            // Keyboard fallback for jumping in editor
+            // 2. KEYBOARD INPUT (Fallback/Testing)
             if (Keyboard.current != null)
             {
+                if (Keyboard.current.aKey.wasPressedThisFrame || Keyboard.current.leftArrowKey.wasPressedThisFrame)
+                {
+                    ChangeLane(-1);
+                }
+                else if (Keyboard.current.dKey.wasPressedThisFrame || Keyboard.current.rightArrowKey.wasPressedThisFrame)
+                {
+                    ChangeLane(1);
+                }
+
                 if (Keyboard.current.spaceKey.wasPressedThisFrame || Keyboard.current.upArrowKey.wasPressedThisFrame)
                 {
-                    if (isGrounded)
-                    {
-                        Jump();
-                    }
-                }
-
-                // Optional keyboard steering fallback
-                float keyboardX = 0f;
-                if (Keyboard.current.aKey.isPressed || Keyboard.current.leftArrowKey.isPressed) keyboardX = -1f;
-                if (Keyboard.current.dKey.isPressed || Keyboard.current.rightArrowKey.isPressed) keyboardX = 1f;
-
-                if (Mathf.Abs(keyboardX) > 0.1f)
-                {
-                    targetX += keyboardX * horizontalSpeed * Time.deltaTime;
-                    targetX = Mathf.Clamp(targetX, leftBoundary, rightBoundary);
+                    if (isGrounded) Jump();
                 }
             }
+        }
+
+        private void ProcessSwipe(Vector2 start, Vector2 end)
+        {
+            Vector2 delta = end - start;
+
+            if (delta.magnitude < swipeThreshold)
+                return;
+
+            // Determine swipe direction
+            if (Mathf.Abs(delta.x) > Mathf.Abs(delta.y))
+            {
+                // Horizontal Swipe
+                if (delta.x > 0)
+                {
+                    ChangeLane(1); // Swipe Right
+                }
+                else
+                {
+                    ChangeLane(-1); // Swipe Left
+                }
+            }
+            else
+            {
+                // Vertical Swipe
+                if (delta.y > 0 && isGrounded)
+                {
+                    Jump(); // Swipe Up
+                }
+            }
+        }
+
+        private void ChangeLane(int direction)
+        {
+            currentLane += direction;
+            currentLane = Mathf.Clamp(currentLane, 0, 2);
         }
 
         private void Jump()
