@@ -7,21 +7,21 @@ namespace PitchRush
     [RequireComponent(typeof(Rigidbody))]
     public class PlayerController : MonoBehaviour
     {
-        [Header("Lane Settings")]
-        [Tooltip("0 = Left, 1 = Center, 2 = Right")]
-        public int currentLane = 1;
-        public float laneDistance = 3f; // Distance between lanes
-        public float laneSwitchSpeed = 15f; // Constant speed for lane transition (caps velocity step)
+        [Header("Movement Settings")]
+        public float leftBoundary = -4.5f;
+        public float rightBoundary = 4.5f;
+        public float horizontalSpeed = 15f; // Damping speed for steering
 
         [Header("Jump & Input Settings")]
         public float jumpForce = 6f;
-        public float swipeThreshold = 50f; // Minimum pixels to register a swipe
+        public float swipeThreshold = 50f; // Minimum pixels to register a swipe for jumping
 
         [Header("Kill Zone")]
         [Tooltip("If the ball falls below this Y value, it's Game Over.")]
         public float killZoneY = -5f;
 
         private Rigidbody rb;
+        private float targetX;
 
         // Pointer tracking logic
         private bool isSwiping = false;
@@ -30,6 +30,7 @@ namespace PitchRush
         void Start()
         {
             rb = GetComponent<Rigidbody>();
+            targetX = transform.position.x;
         }
 
         void Update()
@@ -46,16 +47,9 @@ namespace PitchRush
             // Calculate forward speed from GameManager's progression
             float currentForwardSpeed = GameManager.Instance != null ? GameManager.Instance.CurrentSpeed : 10f;
 
-            // Calculate target X position based on current lane
-            // Center is 0. Left is -laneDistance. Right is +laneDistance.
-            float targetX = (currentLane - 1) * laneDistance;
-
-            // Calculate horizontal velocity needed to reach target lane with a constant speed snap
+            // Calculate horizontal velocity needed to reach target X
             float xDifference = targetX - rb.position.x;
-            
-            // To prevent sluggish deceleration, we move with constant max speed (laneSwitchSpeed)
-            // but slow down in the final frame to avoid overshoot.
-            float targetVelocityX = Mathf.Sign(xDifference) * Mathf.Min(Mathf.Abs(xDifference) / Time.fixedDeltaTime, laneSwitchSpeed);
+            float targetVelocityX = xDifference * horizontalSpeed;
 
             // Set velocity directly: horizontal + forward are controlled, Y is left to physics (gravity + jump)
             rb.linearVelocity = new Vector3(targetVelocityX, rb.linearVelocity.y, currentForwardSpeed);
@@ -78,7 +72,7 @@ namespace PitchRush
             if (GameManager.Instance != null && !GameManager.Instance.IsGameActive)
                 return;
 
-            // 1. TOUCH & MOUSE SWIPE / DRAG INPUT
+            // 1. TOUCH & MOUSE INPUT (Smooth steering + vertical swipe for jump)
             if (Pointer.current != null)
             {
                 Vector2 currentPointerPos = Pointer.current.position.ReadValue();
@@ -101,32 +95,27 @@ namespace PitchRush
 
                 if (Pointer.current.press.isPressed)
                 {
-                    // A. Instant Swipe Detection (during the drag, not waiting for release)
+                    // A. Vertical Swipe Detection for Jump (instant during drag)
                     if (isSwiping)
                     {
                         Vector2 delta = currentPointerPos - swipeStartPos;
-                        if (delta.magnitude >= swipeThreshold)
+                        
+                        // We only register jump if they swipe UP specifically
+                        if (delta.y > swipeThreshold && Mathf.Abs(delta.y) > Mathf.Abs(delta.x))
                         {
-                            ProcessSwipe(swipeStartPos, currentPointerPos);
-                            isSwiping = false; // Prevent multiple swipes in one continuous drag gesture
+                            if (IsGrounded())
+                            {
+                                Jump();
+                            }
+                            isSwiping = false; // Prevent multiple jumps in one gesture
                         }
                     }
 
-                    // B. Direct Screen-Position Steering (Smooth Drag)
-                    // Allows mobile players to drag their finger (or PC mouse) to steer smoothly across lanes
-                    float screenRatio = currentPointerPos.x / Screen.width;
-                    if (screenRatio < 0.35f)
-                    {
-                        currentLane = 0; // Left Lane
-                    }
-                    else if (screenRatio > 0.65f)
-                    {
-                        currentLane = 2; // Right Lane
-                    }
-                    else
-                    {
-                        currentLane = 1; // Center Lane
-                    }
+                    // B. Direct Screen-Position Steering (Smooth Continuous Drag)
+                    // Map screen X coordinate (0 to Screen.width) to world boundaries (leftBoundary to rightBoundary)
+                    float normalizedX = currentPointerPos.x / Screen.width;
+                    targetX = Mathf.Lerp(leftBoundary, rightBoundary, normalizedX);
+                    targetX = Mathf.Clamp(targetX, leftBoundary, rightBoundary);
                 }
 
                 if (Pointer.current.press.wasReleasedThisFrame)
@@ -138,56 +127,23 @@ namespace PitchRush
             // 2. KEYBOARD INPUT (Fallback/Testing)
             if (Keyboard.current != null)
             {
-                if (Keyboard.current.aKey.wasPressedThisFrame || Keyboard.current.leftArrowKey.wasPressedThisFrame)
+                // Steering fallback
+                float keyboardX = 0f;
+                if (Keyboard.current.aKey.isPressed || Keyboard.current.leftArrowKey.isPressed) keyboardX = -1f;
+                if (Keyboard.current.dKey.isPressed || Keyboard.current.rightArrowKey.isPressed) keyboardX = 1f;
+
+                if (Mathf.Abs(keyboardX) > 0.1f)
                 {
-                    ChangeLane(-1);
-                }
-                else if (Keyboard.current.dKey.wasPressedThisFrame || Keyboard.current.rightArrowKey.wasPressedThisFrame)
-                {
-                    ChangeLane(1);
+                    targetX += keyboardX * horizontalSpeed * Time.deltaTime;
+                    targetX = Mathf.Clamp(targetX, leftBoundary, rightBoundary);
                 }
 
+                // Jump fallback
                 if (Keyboard.current.spaceKey.wasPressedThisFrame || Keyboard.current.upArrowKey.wasPressedThisFrame)
                 {
                     if (IsGrounded()) Jump();
                 }
             }
-        }
-
-        private void ProcessSwipe(Vector2 start, Vector2 end)
-        {
-            Vector2 delta = end - start;
-
-            if (delta.magnitude < swipeThreshold)
-                return;
-
-            // Determine swipe direction
-            if (Mathf.Abs(delta.x) > Mathf.Abs(delta.y))
-            {
-                // Horizontal Swipe
-                if (delta.x > 0)
-                {
-                    ChangeLane(1); // Swipe Right
-                }
-                else
-                {
-                    ChangeLane(-1); // Swipe Left
-                }
-            }
-            else
-            {
-                // Vertical Swipe
-                if (delta.y > 0 && IsGrounded())
-                {
-                    Jump(); // Swipe Up
-                }
-            }
-        }
-
-        private void ChangeLane(int direction)
-        {
-            currentLane += direction;
-            currentLane = Mathf.Clamp(currentLane, 0, 2);
         }
 
         private void Jump()
