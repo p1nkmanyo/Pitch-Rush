@@ -11,7 +11,7 @@ namespace PitchRush
         [Tooltip("0 = Left, 1 = Center, 2 = Right")]
         public int currentLane = 1;
         public float laneDistance = 3f; // Distance between lanes
-        public float laneSwitchSpeed = 15f; // How fast the ball snaps to the target lane
+        public float laneSwitchSpeed = 15f; // Constant speed for lane transition (caps velocity step)
 
         [Header("Jump & Input Settings")]
         public float jumpForce = 6f;
@@ -22,7 +22,6 @@ namespace PitchRush
         public float killZoneY = -5f;
 
         private Rigidbody rb;
-        private bool isGrounded = true;
 
         // Pointer tracking logic
         private bool isSwiping = false;
@@ -51,12 +50,15 @@ namespace PitchRush
             // Center is 0. Left is -laneDistance. Right is +laneDistance.
             float targetX = (currentLane - 1) * laneDistance;
 
-            // Calculate horizontal velocity needed to reach target lane
+            // Calculate horizontal velocity needed to reach target lane with a constant speed snap
             float xDifference = targetX - rb.position.x;
-            float horizontalVelocity = xDifference * laneSwitchSpeed;
+            
+            // To prevent sluggish deceleration, we move with constant max speed (laneSwitchSpeed)
+            // but slow down in the final frame to avoid overshoot.
+            float targetVelocityX = Mathf.Sign(xDifference) * Mathf.Min(Mathf.Abs(xDifference) / Time.fixedDeltaTime, laneSwitchSpeed);
 
             // Set velocity directly: horizontal + forward are controlled, Y is left to physics (gravity + jump)
-            rb.linearVelocity = new Vector3(horizontalVelocity, rb.linearVelocity.y, currentForwardSpeed);
+            rb.linearVelocity = new Vector3(targetVelocityX, rb.linearVelocity.y, currentForwardSpeed);
         }
 
         private void CheckKillZone()
@@ -76,9 +78,11 @@ namespace PitchRush
             if (GameManager.Instance != null && !GameManager.Instance.IsGameActive)
                 return;
 
-            // 1. TOUCH & MOUSE SWIPE INPUT
+            // 1. TOUCH & MOUSE SWIPE / DRAG INPUT
             if (Pointer.current != null)
             {
+                Vector2 currentPointerPos = Pointer.current.position.ReadValue();
+
                 if (Pointer.current.press.wasPressedThisFrame)
                 {
                     // Prevent input bleed through UI
@@ -92,15 +96,41 @@ namespace PitchRush
                     }
 
                     isSwiping = true;
-                    swipeStartPos = Pointer.current.position.ReadValue();
+                    swipeStartPos = currentPointerPos;
                 }
-                else if (Pointer.current.press.wasReleasedThisFrame)
+
+                if (Pointer.current.press.isPressed)
                 {
+                    // A. Instant Swipe Detection (during the drag, not waiting for release)
                     if (isSwiping)
                     {
-                        Vector2 swipeEndPos = Pointer.current.position.ReadValue();
-                        ProcessSwipe(swipeStartPos, swipeEndPos);
+                        Vector2 delta = currentPointerPos - swipeStartPos;
+                        if (delta.magnitude >= swipeThreshold)
+                        {
+                            ProcessSwipe(swipeStartPos, currentPointerPos);
+                            isSwiping = false; // Prevent multiple swipes in one continuous drag gesture
+                        }
                     }
+
+                    // B. Direct Screen-Position Steering (Smooth Drag)
+                    // Allows mobile players to drag their finger (or PC mouse) to steer smoothly across lanes
+                    float screenRatio = currentPointerPos.x / Screen.width;
+                    if (screenRatio < 0.35f)
+                    {
+                        currentLane = 0; // Left Lane
+                    }
+                    else if (screenRatio > 0.65f)
+                    {
+                        currentLane = 2; // Right Lane
+                    }
+                    else
+                    {
+                        currentLane = 1; // Center Lane
+                    }
+                }
+
+                if (Pointer.current.press.wasReleasedThisFrame)
+                {
                     isSwiping = false;
                 }
             }
@@ -119,7 +149,7 @@ namespace PitchRush
 
                 if (Keyboard.current.spaceKey.wasPressedThisFrame || Keyboard.current.upArrowKey.wasPressedThisFrame)
                 {
-                    if (isGrounded) Jump();
+                    if (IsGrounded()) Jump();
                 }
             }
         }
@@ -147,7 +177,7 @@ namespace PitchRush
             else
             {
                 // Vertical Swipe
-                if (delta.y > 0 && isGrounded)
+                if (delta.y > 0 && IsGrounded())
                 {
                     Jump(); // Swipe Up
                 }
@@ -165,23 +195,24 @@ namespace PitchRush
             // Zero out vertical velocity before jumping to ensure consistent jump height
             rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
             rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
-            isGrounded = false;
         }
 
-        private void OnCollisionEnter(Collision collision)
+        private bool IsGrounded()
         {
-            if (!collision.gameObject.CompareTag("Ground")) return;
+            SphereCollider sphereCollider = GetComponent<SphereCollider>();
+            float radius = sphereCollider != null ? sphereCollider.radius * transform.localScale.y : 0.5f;
+            float castDistance = 0.15f; // Small buffer beneath the ball
 
-            // Verify that the contact normal points upward (dot product > 0.7 ≈ <45° from vertical)
-            // This prevents wall-jump exploits when hitting the side of a ground-tagged platform
-            foreach (ContactPoint contact in collision.contacts)
+            // SphereCast down to detect the "Ground" tag, ignoring the player's own collider
+            RaycastHit hit;
+            if (Physics.SphereCast(transform.position, radius * 0.9f, Vector3.down, out hit, radius + castDistance))
             {
-                if (Vector3.Dot(contact.normal, Vector3.up) > 0.7f)
+                if (hit.collider.CompareTag("Ground"))
                 {
-                    isGrounded = true;
-                    return;
+                    return true;
                 }
             }
+            return false;
         }
     }
 }
