@@ -11,11 +11,15 @@ namespace PitchRush
         [Tooltip("0 = Left, 1 = Center, 2 = Right")]
         public int currentLane = 1;
         public float laneDistance = 3f; // Distance between lanes
-        public float horizontalSpeed = 20f; // Speed of lane changing
+        public float laneSwitchSpeed = 15f; // How fast the ball snaps to the target lane
 
         [Header("Jump & Input Settings")]
         public float jumpForce = 6f;
         public float swipeThreshold = 50f; // Minimum pixels to register a swipe
+
+        [Header("Kill Zone")]
+        [Tooltip("If the ball falls below this Y value, it's Game Over.")]
+        public float killZoneY = -5f;
 
         private Rigidbody rb;
         private bool isGrounded = true;
@@ -32,6 +36,7 @@ namespace PitchRush
         void Update()
         {
             HandleInput();
+            CheckKillZone();
         }
 
         void FixedUpdate()
@@ -39,20 +44,31 @@ namespace PitchRush
             if (GameManager.Instance != null && !GameManager.Instance.IsGameActive)
                 return;
 
-            // Calculate forward movement based on GameManager's progression speed
+            // Calculate forward speed from GameManager's progression
             float currentForwardSpeed = GameManager.Instance != null ? GameManager.Instance.CurrentSpeed : 10f;
-            Vector3 forwardMovement = transform.forward * currentForwardSpeed * Time.fixedDeltaTime;
 
             // Calculate target X position based on current lane
             // Center is 0. Left is -laneDistance. Right is +laneDistance.
             float targetX = (currentLane - 1) * laneDistance;
 
-            // Smoothly move X position towards target using Mathf.MoveTowards for snappy but smooth lane changes
-            float newX = Mathf.MoveTowards(rb.position.x, targetX, horizontalSpeed * Time.fixedDeltaTime);
+            // Calculate horizontal velocity needed to reach target lane
+            float xDifference = targetX - rb.position.x;
+            float horizontalVelocity = xDifference * laneSwitchSpeed;
 
-            // Apply movement safely using MovePosition
-            Vector3 newPosition = new Vector3(newX, rb.position.y, rb.position.z) + forwardMovement;
-            rb.MovePosition(newPosition);
+            // Set velocity directly: horizontal + forward are controlled, Y is left to physics (gravity + jump)
+            rb.linearVelocity = new Vector3(horizontalVelocity, rb.linearVelocity.y, currentForwardSpeed);
+        }
+
+        private void CheckKillZone()
+        {
+            // If the ball has fallen below the kill zone threshold, trigger Game Over
+            if (transform.position.y < killZoneY)
+            {
+                if (GameManager.Instance != null)
+                {
+                    GameManager.Instance.GameOver();
+                }
+            }
         }
 
         private void HandleInput()
@@ -154,10 +170,17 @@ namespace PitchRush
 
         private void OnCollisionEnter(Collision collision)
         {
-            // Simple check to see if we hit the ground
-            if (collision.gameObject.CompareTag("Ground"))
+            if (!collision.gameObject.CompareTag("Ground")) return;
+
+            // Verify that the contact normal points upward (dot product > 0.7 ≈ <45° from vertical)
+            // This prevents wall-jump exploits when hitting the side of a ground-tagged platform
+            foreach (ContactPoint contact in collision.contacts)
             {
-                isGrounded = true;
+                if (Vector3.Dot(contact.normal, Vector3.up) > 0.7f)
+                {
+                    isGrounded = true;
+                    return;
+                }
             }
         }
     }
