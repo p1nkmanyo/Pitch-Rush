@@ -7,6 +7,14 @@ namespace PitchRush
         public int coinValue = 1;
         public float rotateSpeed = 100f;
 
+        private bool isCollected = false;
+
+        // Reset flag when re-enabled from the object pool
+        private void OnEnable()
+        {
+            isCollected = false;
+        }
+
         void Update()
         {
             // Rotate the coin for visual effect
@@ -15,8 +23,13 @@ namespace PitchRush
 
         private void OnTriggerEnter(Collider other)
         {
+            // Guard against double-collection within the same physics frame
+            if (isCollected) return;
+
             if (other.CompareTag("Player"))
             {
+                isCollected = true;
+
                 // Add coin value
                 if (GameManager.Instance != null)
                 {
