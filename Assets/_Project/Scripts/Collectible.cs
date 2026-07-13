@@ -18,11 +18,15 @@ namespace PitchRush
             if (other.CompareTag("Player"))
             {
                 // Add coin value
-                GameManager.Instance.AddCoin(coinValue);
+                if (GameManager.Instance != null)
+                {
+                    GameManager.Instance.AddCoin(coinValue);
+                }
 
                 // Play sound effect or particle effect here if available
 
-                Destroy(gameObject);
+                // Instead of destroying, we disable it so it can be reused in the object pool
+                gameObject.SetActive(false);
             }
         }
     }
