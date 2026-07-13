@@ -115,10 +115,7 @@ namespace PitchRush
             {
                 segment.ResetSegment();
 
-                // Calculate next spawn position based on user's instruction:
-                // nextSpawnPosition + segment.endPoint.transform.localPosition
-                // We rotate it by the track's rotation in case tracks curve in the future.
-                nextSpawnPosition = track.transform.position + track.transform.TransformDirection(segment.endPoint.localPosition);
+                nextSpawnPosition = segment.endPoint.position;
             }
             else
             {
