@@ -15,7 +15,7 @@ MonoBehaviour:
   buffName: 
   buffType: 0
   uiIcon: {fileID: 0}
-  duration: 5
+  duration: 6
   vfxPrefab: {fileID: 0}
   vfxOffset: {x: 0, y: 0, z: 0}
   parentVFXToPlayer: 1

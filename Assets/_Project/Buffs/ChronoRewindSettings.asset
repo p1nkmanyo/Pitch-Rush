@@ -13,9 +13,9 @@ MonoBehaviour:
   m_Name: ChronoRewindSettings
   m_EditorClassIdentifier: Assembly-CSharp::PitchRush.BuffSettings
   buffName: 
-  buffType: 0
+  buffType: 3
   uiIcon: {fileID: 0}
-  duration: 5
+  duration: 7
   vfxPrefab: {fileID: 0}
   vfxOffset: {x: 0, y: 0, z: 0}
   parentVFXToPlayer: 1

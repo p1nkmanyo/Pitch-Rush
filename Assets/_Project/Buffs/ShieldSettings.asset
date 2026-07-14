@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: ShieldSettings
   m_EditorClassIdentifier: Assembly-CSharp::PitchRush.BuffSettings
   buffName: 
-  buffType: 0
+  buffType: 1
   uiIcon: {fileID: 0}
   duration: 5
   vfxPrefab: {fileID: 0}
