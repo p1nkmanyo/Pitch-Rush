@@ -34,6 +34,7 @@ namespace PitchRush
         private int currentCoins = 0;
         private float score = 0f;
         private bool isGameOver = false;
+        private float targetProgressionSpeed;
 
         private void Awake()
         {
@@ -50,6 +51,7 @@ namespace PitchRush
         private void Start()
         {
             Time.timeScale = 1f; // Ensure time is running
+            targetProgressionSpeed = baseSpeed;
             CurrentSpeed = baseSpeed;
 
             if (gameOverPanel != null)
@@ -106,7 +108,16 @@ namespace PitchRush
             if (isGameOver || playerTransform == null) return;
 
             // Speed progression
-            CurrentSpeed = Mathf.MoveTowards(CurrentSpeed, maxSpeed, accelerationRate * Time.deltaTime);
+            targetProgressionSpeed = Mathf.MoveTowards(targetProgressionSpeed, maxSpeed, accelerationRate * Time.deltaTime);
+
+            float speedMultiplier = 1f;
+            BuffManager buffManager = playerTransform.GetComponent<BuffManager>();
+            if (buffManager != null && buffManager.IsBuffActive(BuffType.SpeedBoost))
+            {
+                speedMultiplier = 2f; // Upto 2x speed for Speed Boost
+            }
+
+            CurrentSpeed = targetProgressionSpeed * speedMultiplier;
 
             // Score increases based on distance traveled (Z axis)
             // Assuming player starts at Z=0
@@ -127,6 +138,29 @@ namespace PitchRush
         public void GameOver()
         {
             if (isGameOver) return;
+
+            if (playerTransform != null)
+            {
+                BuffManager buffManager = playerTransform.GetComponent<BuffManager>();
+                if (buffManager != null)
+                {
+                    if (buffManager.IsInvincible())
+                    {
+                        return; // Ignore damage entirely during boost/rewind
+                    }
+
+                    if (buffManager.IsBuffActive(BuffType.Shield))
+                    {
+                        buffManager.ConsumeShield();
+                        return; // Shield absorbed hit
+                    }
+
+                    if (buffManager.TriggerChronoRewind())
+                    {
+                        return; // Rewind activated, save player
+                    }
+                }
+            }
 
             isGameOver = true;
             Time.timeScale = 0f; // Pause the game
