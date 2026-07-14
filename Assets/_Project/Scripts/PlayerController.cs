@@ -42,6 +42,37 @@ namespace PitchRush
         private bool wasGrounded = true;
         private float formJumpMultiplier = 1f;
 
+        private void Awake()
+        {
+            // Auto-restructure visual mesh if it is directly on the root Player object
+            MeshFilter rootMeshFilter = GetComponent<MeshFilter>();
+            MeshRenderer rootMeshRenderer = GetComponent<MeshRenderer>();
+
+            if (visualModel == null && rootMeshFilter != null && rootMeshRenderer != null)
+            {
+                // Create a child object for visuals
+                GameObject visualObj = new GameObject("PlayerVisuals");
+                visualObj.transform.SetParent(transform);
+                visualObj.transform.localPosition = Vector3.zero;
+                visualObj.transform.localRotation = Quaternion.identity;
+                visualObj.transform.localScale = Vector3.one;
+
+                // Copy MeshFilter
+                MeshFilter childFilter = visualObj.AddComponent<MeshFilter>();
+                childFilter.sharedMesh = rootMeshFilter.sharedMesh;
+
+                // Copy MeshRenderer
+                MeshRenderer childRenderer = visualObj.AddComponent<MeshRenderer>();
+                childRenderer.sharedMaterials = rootMeshRenderer.sharedMaterials;
+
+                // Clean up root components so we don't have duplicates
+                Destroy(rootMeshRenderer);
+                Destroy(rootMeshFilter);
+
+                visualModel = visualObj.transform;
+            }
+        }
+
         void Start()
         {
             rb = GetComponent<Rigidbody>();
