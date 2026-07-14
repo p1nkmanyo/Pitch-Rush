@@ -1227,6 +1227,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1602721984}
   - component: {fileID: 1602721983}
+  - component: {fileID: 1602721985}
   m_Layer: 0
   m_Name: TrackManager
   m_TagString: Untagged
@@ -1267,6 +1268,20 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1602721985
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1602721982}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a25175e32afbe6e44a4f5c175c67d8fc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::PitchRush.BuffItem
+  settings: {fileID: 0}
+  rotateSpeed: 100
 --- !u!1 &1698707093
 GameObject:
   m_ObjectHideFlags: 0
