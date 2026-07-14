@@ -1481,8 +1481,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 83458087b85f279499270657a01d3274, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PitchRush.GameManager
-  scoreText: {fileID: 0}
-  coinsText: {fileID: 0}
+  scoreText: {fileID: 389393033}
+  coinsText: {fileID: 834870578}
   gameOverPanel: {fileID: 727747148}
   playerSkinPrefabs: []
   playerSpawnPosition: {x: 0, y: 1, z: 0}
