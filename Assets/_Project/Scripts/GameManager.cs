@@ -191,10 +191,7 @@ namespace PitchRush
                         }
                     }
 
-                    if (buffManager.TriggerChronoRewind())
-                    {
-                        return; // Rewind activated, save player
-                    }
+
                 }
             }
 

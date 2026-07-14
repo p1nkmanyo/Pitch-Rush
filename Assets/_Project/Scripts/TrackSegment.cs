@@ -17,25 +17,40 @@ namespace PitchRush
         public float buffSpawnChance = 0.05f;
 
         private Collectible[] collectibles;
+        private Obstacle[] obstacles;
         private List<GameObject> spawnedBuffs = new List<GameObject>();
 
         private void Awake()
         {
-            // Cache all collectibles in this segment so we can quickly reactivate them
-            collectibles = GetComponentsInChildren<Collectible>(true); // true to include inactive
+            // Cache all collectibles and obstacles in this segment so we can quickly reactivate/reset them
+            collectibles = GetComponentsInChildren<Collectible>(true);
+            obstacles = GetComponentsInChildren<Obstacle>(true);
         }
 
         public void ResetSegment()
         {
-            // Clear previously spawned buffs to prevent leaks
+            // Clear previously spawned buffs using ObjectPool instead of Destroy (0 GC Alloc!)
             foreach (GameObject buff in spawnedBuffs)
             {
-                if (buff != null)
+                if (buff != null && ObjectPool.Instance != null)
                 {
-                    Destroy(buff);
+                    ObjectPool.Instance.Despawn(buff);
+                }
+                else if (buff != null)
+                {
+                    Destroy(buff); // Fallback
                 }
             }
             spawnedBuffs.Clear();
+
+            // Reset all obstacles to their intact/active state for mobile recycling (0 GC Alloc!)
+            if (obstacles != null)
+            {
+                foreach (Obstacle obs in obstacles)
+                {
+                    if (obs != null) obs.ResetObstacle();
+                }
+            }
 
             // Reactivate collectibles or replace them with buffs
             if (collectibles != null)
@@ -49,12 +64,25 @@ namespace PitchRush
                         {
                             coin.gameObject.SetActive(false); // Hide the coin
 
-                            // Select and spawn a random buff prefab
+                            // Select and spawn a random buff prefab via ObjectPool
                             GameObject selectedBuffPrefab = buffPrefabs[Random.Range(0, buffPrefabs.Length)];
                             if (selectedBuffPrefab != null)
                             {
-                                GameObject buffInstance = Instantiate(selectedBuffPrefab, coin.transform.position, Quaternion.identity, transform);
-                                spawnedBuffs.Add(buffInstance);
+                                GameObject buffInstance = null;
+                                if (ObjectPool.Instance != null)
+                                {
+                                    buffInstance = ObjectPool.Instance.Spawn(selectedBuffPrefab, coin.transform.position, Quaternion.identity);
+                                    buffInstance.transform.SetParent(transform);
+                                }
+                                else
+                                {
+                                    buffInstance = Instantiate(selectedBuffPrefab, coin.transform.position, Quaternion.identity, transform);
+                                }
+
+                                if (buffInstance != null)
+                                {
+                                    spawnedBuffs.Add(buffInstance);
+                                }
                             }
                         }
                         else

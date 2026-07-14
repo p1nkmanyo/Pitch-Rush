@@ -20,8 +20,11 @@ namespace PitchRush
         private float shakeMagnitude = 0.1f;
         private Vector3 shakeOffset = Vector3.zero;
 
+        private Vector3 currentCameraUp = Vector3.up;
+
         private void Start()
         {
+            currentCameraUp = Vector3.up;
             if (!lookAtTarget)
             {
                 transform.rotation = Quaternion.Euler(defaultRotation);
@@ -50,8 +53,34 @@ namespace PitchRush
                 shakeOffset = Vector3.zero;
             }
 
-            // Target position based on offset
-            Vector3 desiredPosition = target.position + offset;
+            // Smoothly calculate target up vector (for Wall Run or Ceiling Gravity)
+            Vector3 targetUp = Vector3.up;
+            PlayerController player = target.GetComponent<PlayerController>();
+            if (player != null)
+            {
+                if (player.IsWallRunning)
+                {
+                    // Tilt by 45 degrees towards the wall normal for dynamic racing roll
+                    targetUp = (Vector3.up + player.WallRunNormal).normalized;
+                }
+                else if (player.IsCeilingGravityActive)
+                {
+                    // Invert completely
+                    targetUp = Vector3.down;
+                }
+            }
+
+            // Interpolate camera up vector to avoid sudden jarring rotation
+            currentCameraUp = Vector3.Slerp(currentCameraUp, targetUp, 4f * Time.deltaTime);
+
+            // Target position based on offset (we modify the offset dynamically if upside down to keep view comfortable)
+            Vector3 dynamicOffset = offset;
+            if (player != null && player.IsCeilingGravityActive)
+            {
+                dynamicOffset.y = -offset.y; // Flip offset vertical axis
+            }
+
+            Vector3 desiredPosition = target.position + dynamicOffset;
 
             // Smoothly move the camera towards that desired position and add the shake offset
             Vector3 smoothedPosition = Vector3.Lerp(transform.position, desiredPosition, smoothSpeed * Time.deltaTime) + shakeOffset;
@@ -59,13 +88,17 @@ namespace PitchRush
 
             if (lookAtTarget)
             {
-                // Smooth look at
-                Quaternion targetRotation = Quaternion.LookRotation(target.position - transform.position);
-                transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, smoothSpeed * Time.deltaTime);
+                // Smooth look at with dynamic up vector
+                Vector3 lookDirection = target.position - transform.position;
+                if (lookDirection != Vector3.zero)
+                {
+                    Quaternion targetRotation = Quaternion.LookRotation(lookDirection, currentCameraUp);
+                    transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, smoothSpeed * Time.deltaTime);
+                }
             }
             else
             {
-                // Maintain fixed rotation relative to the target's forward (or just world axis)
+                // Maintain rotation relative to custom up vector
                 transform.rotation = Quaternion.Euler(defaultRotation);
             }
         }

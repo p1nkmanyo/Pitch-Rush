@@ -4,18 +4,6 @@ using UnityEngine;
 
 namespace PitchRush
 {
-    public struct PlayerStatePoint
-    {
-        public Vector3 position;
-        public float time;
-
-        public PlayerStatePoint(Vector3 pos, float t)
-        {
-            position = pos;
-            time = t;
-        }
-    }
-
     public class BuffManager : MonoBehaviour
     {
         [Header("Magnet Settings")]
@@ -30,9 +18,6 @@ namespace PitchRush
         private Dictionary<BuffType, float> buffTimers = new Dictionary<BuffType, float>();
         private Dictionary<BuffType, GameObject> spawnedVfx = new Dictionary<BuffType, GameObject>();
 
-        // Chrono Rewind states
-        private List<PlayerStatePoint> stateHistory = new List<PlayerStatePoint>();
-        private bool isRewinding = false;
         private bool isTemporaryInvincible = false;
 
         void Start()
@@ -44,21 +29,6 @@ namespace PitchRush
         {
             UpdateBuffTimers();
             HandleMagnet();
-        }
-
-        void FixedUpdate()
-        {
-            // Record position history for Chrono Rewind
-            if (!isRewinding && GameManager.Instance != null && GameManager.Instance.IsGameActive)
-            {
-                stateHistory.Add(new PlayerStatePoint(transform.position, Time.time));
-
-                // Keep history to exactly 2 seconds
-                while (stateHistory.Count > 0 && Time.time - stateHistory[0].time > 2f)
-                {
-                    stateHistory.RemoveAt(0);
-                }
-            }
         }
 
         public void ApplyBuff(BuffSettings settings)
@@ -140,7 +110,7 @@ namespace PitchRush
 
         public bool IsInvincible()
         {
-            return IsBuffActive(BuffType.SpeedBoost) || isTemporaryInvincible || isRewinding;
+            return IsBuffActive(BuffType.SpeedBoost) || isTemporaryInvincible;
         }
 
         public void ConsumeShield()
@@ -154,15 +124,6 @@ namespace PitchRush
             }
         }
 
-        public bool TriggerChronoRewind()
-        {
-            if (IsBuffActive(BuffType.ChronoRewind) && !isRewinding)
-            {
-                StartCoroutine(RewindCoroutine());
-                return true;
-            }
-            return false;
-        }
 
         public float GetRemainingTime(BuffType type)
         {
@@ -211,46 +172,6 @@ namespace PitchRush
             }
         }
 
-        private IEnumerator RewindCoroutine()
-        {
-            isRewinding = true;
-            rb.isKinematic = true; // Disable physics
-
-            // Store the current game over state if GameManager is paused, but we want to unpause it for gameplay
-            Time.timeScale = 1f; 
-
-            // Deactivate the ChronoRewind buff immediately so it is not consumed again
-            RemoveBuff(BuffType.ChronoRewind);
-
-            // Replay position history backwards
-            for (int i = stateHistory.Count - 1; i >= 0; i--)
-            {
-                transform.position = stateHistory[i].position;
-                yield return new WaitForSecondsRealtime(0.02f); // Rapid rewind (ignores timescale)
-            }
-
-            stateHistory.Clear();
-            rb.isKinematic = false;
-
-            // Stop all momentum to prevent launching the ball post-rewind
-            rb.linearVelocity = Vector3.zero;
-            rb.angularVelocity = Vector3.zero;
-
-            // Reset the player to the center lane or closest lane to prevent immediately falling again
-            PlayerController controller = GetComponent<PlayerController>();
-            if (controller != null)
-            {
-                // Align targetX to the closest boundary clamp to keep them safe
-                // (No lanes are used in continuous steering, but we clamp targetX to current position)
-                // We keep targetX at the safe rewind position.
-            }
-
-            // Give a temporary invincibility shield to recover
-            StartCoroutine(TemporaryInvincibilityCoroutine(2f));
-            isRewinding = false;
-
-            Debug.Log("Chrono Rewind finished!");
-        }
 
         public IEnumerator TemporaryInvincibilityCoroutine(float duration)
         {

@@ -49,6 +49,20 @@ namespace PitchRush
         private float formJumpMultiplier = 1f;
         private Transform meshHolder;
 
+        // Wall Run and Color state fields/properties
+        public bool IsWallRunning => isWallRunning;
+        public Vector3 WallRunNormal => wallRunNormal;
+        public bool IsCeilingGravityActive => isCeilingGravityActive;
+
+        [Header("Wall Run Settings")]
+        public float wallGravityForce = 15f;
+        private bool isWallRunning = false;
+        private Vector3 wallRunNormal = Vector3.zero;
+
+        [Header("Color Mixing System")]
+        public Color defaultSlimeColor = new Color(1f, 0.2f, 0.2f, 0.8f); // Translucent Red Gel
+        public Color currentSlimeColor = new Color(1f, 0.2f, 0.2f, 0.8f);
+
         private void Awake()
         {
             // Auto-restructure visual mesh if it is directly on the root Player object
@@ -132,7 +146,21 @@ namespace PitchRush
             // Apply custom upward gravity if snapped to ceiling
             if (isCeilingGravityActive && CurrentForm == BlobForm.HeavyIron)
             {
+                rb.useGravity = false;
                 rb.AddForce(Vector3.up * ceilingMagnetForce, ForceMode.Acceleration);
+            }
+            // Apply custom wall run gravity vector locally (0 GC Alloc!)
+            else if (isWallRunning && CurrentForm == BlobForm.Default)
+            {
+                rb.useGravity = false;
+                // Pull towards wall normal
+                rb.AddForce(-wallRunNormal * wallGravityForce, ForceMode.Acceleration);
+                // Also pull down towards track
+                rb.AddForce(Physics.gravity, ForceMode.Acceleration);
+            }
+            else
+            {
+                rb.useGravity = true;
             }
 
             // Calculate forward speed from GameManager's progression
@@ -387,15 +415,26 @@ namespace PitchRush
         {
             if (visualModel == null) return;
 
-            // Lock visual model rotation to upright (or 180 degrees flipped if on ceiling)
-            // Add a slight banking tilt when steering left/right
-            float targetZAngle = isCeilingGravityActive ? 180f : 0f;
+            float targetZAngle = 0f;
+
+            if (isWallRunning && CurrentForm == BlobForm.Default)
+            {
+                // Align visual rotation perpendicular to the wall normal
+                // If normal is pointing right (X > 0), player is on the left wall -> tilt -90 degrees.
+                // If normal is pointing left (X < 0), player is on the right wall -> tilt 90 degrees.
+                targetZAngle = wallRunNormal.x > 0.1f ? -90f : (wallRunNormal.x < -0.1f ? 90f : 0f);
+            }
+            else
+            {
+                targetZAngle = isCeilingGravityActive ? 180f : 0f;
+            }
             
             float xVel = rb.linearVelocity.x;
             float tiltAngle = Mathf.Clamp(-xVel * 1.6f, -12f, 12f); // Bank into turns
 
-            // Smooth rotation transition
-            visualModel.rotation = Quaternion.Euler(0f, 0f, targetZAngle + tiltAngle);
+            // Smooth local rotation transition
+            Quaternion targetRot = Quaternion.Euler(0f, 0f, targetZAngle + tiltAngle);
+            visualModel.localRotation = Quaternion.Slerp(visualModel.localRotation, targetRot, 8f * Time.deltaTime);
         }
 
         private bool IsGrounded()
@@ -532,6 +571,62 @@ namespace PitchRush
                 }
             }
             return false;
+        }
+
+        private void OnCollisionStay(Collision collision)
+        {
+            if (collision.gameObject.CompareTag("StickyWall") && CurrentForm == BlobForm.Default)
+            {
+                isWallRunning = true;
+                wallRunNormal = collision.contacts[0].normal;
+            }
+        }
+
+        private void OnCollisionExit(Collision collision)
+        {
+            if (collision.gameObject.CompareTag("StickyWall"))
+            {
+                isWallRunning = false;
+                wallRunNormal = Vector3.zero;
+            }
+        }
+
+        private void OnTriggerEnter(Collider other)
+        {
+            if (other.CompareTag("ColorPickup"))
+            {
+                // In Unity, the color pickup can have a simple ColorContainer script that stores its color
+                ColorContainer cc = other.GetComponent<ColorContainer>();
+                if (cc != null)
+                {
+                    SetSlimeColor(cc.color);
+                }
+                other.gameObject.SetActive(false); // Hide pickup (0 GC Alloc!)
+            }
+            else if (other.CompareTag("WashPuddle"))
+            {
+                // Wash away the paint and return to default slime color
+                SetSlimeColor(defaultSlimeColor);
+            }
+        }
+
+        public void SetSlimeColor(Color newColor)
+        {
+            currentSlimeColor = newColor;
+
+            // Apply color to visual model renderer
+            if (visualModel != null)
+            {
+                Renderer rend = visualModel.GetComponentInChildren<Renderer>();
+                if (rend != null)
+                {
+                    rend.material.color = currentSlimeColor;
+                    if (rend.material.HasProperty("_BaseColor"))
+                    {
+                        rend.material.SetColor("_BaseColor", currentSlimeColor);
+                    }
+                }
+            }
         }
     }
 }
