@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using TMPro;
 
 // Removed namespace PitchRush so local UI scripts can access ShopManager without errors
 
@@ -13,7 +14,7 @@ public class SkinItem
 public class ShopManager : MonoBehaviour
 {
     [Header("UI Elements")]
-    public Text totalCoinsText;
+    public TMP_Text totalCoinsText;
 
     [Header("Skins Data")]
     public SkinItem[] skins;
