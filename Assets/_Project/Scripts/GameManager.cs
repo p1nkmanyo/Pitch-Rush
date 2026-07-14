@@ -35,6 +35,8 @@ namespace PitchRush
         private float score = 0f;
         private bool isGameOver = false;
         private float targetProgressionSpeed;
+        private Vector3 coinsTextOriginalScale;
+        private Vector3 scoreTextOriginalScale;
 
         private void Awake()
         {
@@ -58,6 +60,9 @@ namespace PitchRush
             {
                 gameOverPanel.SetActive(false);
             }
+
+            if (coinsText != null) coinsTextOriginalScale = coinsText.transform.localScale;
+            if (scoreText != null) scoreTextOriginalScale = scoreText.transform.localScale;
 
             SpawnPlayer();
             UpdateUI();
@@ -125,6 +130,22 @@ namespace PitchRush
             {
                 score = playerTransform.position.z;
                 UpdateUI();
+                
+                // Small pulse for every 10 points threshold
+                if (scoreText != null && Mathf.FloorToInt(score) % 10 == 0)
+                {
+                    scoreText.transform.localScale = scoreTextOriginalScale * 1.15f;
+                }
+            }
+
+            // Smoothly restore UI text scales for juiciness
+            if (coinsText != null && coinsTextOriginalScale != Vector3.zero)
+            {
+                coinsText.transform.localScale = Vector3.MoveTowards(coinsText.transform.localScale, coinsTextOriginalScale, Time.deltaTime * 3f);
+            }
+            if (scoreText != null && scoreTextOriginalScale != Vector3.zero)
+            {
+                scoreText.transform.localScale = Vector3.MoveTowards(scoreText.transform.localScale, scoreTextOriginalScale, Time.deltaTime * 3f);
             }
         }
 
@@ -133,6 +154,12 @@ namespace PitchRush
             if (isGameOver) return;
             currentCoins += amount;
             UpdateUI();
+
+            // Punch the scale of the coin UI text for visual reward feedback
+            if (coinsText != null && coinsTextOriginalScale != Vector3.zero)
+            {
+                coinsText.transform.localScale = coinsTextOriginalScale * 1.35f;
+            }
         }
 
         public void GameOver()

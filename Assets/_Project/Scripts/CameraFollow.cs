@@ -15,6 +15,11 @@ namespace PitchRush
         public bool lookAtTarget = true;
         public Vector3 defaultRotation = new Vector3(25f, 0f, 0f);
 
+        // Screen Shake variables
+        private float shakeDuration = 0f;
+        private float shakeMagnitude = 0.1f;
+        private Vector3 shakeOffset = Vector3.zero;
+
         private void Start()
         {
             if (!lookAtTarget)
@@ -23,16 +28,33 @@ namespace PitchRush
             }
         }
 
+        public void TriggerShake(float duration, float magnitude)
+        {
+            shakeDuration = duration;
+            shakeMagnitude = magnitude;
+        }
+
         private void LateUpdate()
         {
             if (target == null)
                 return;
 
+            // Handle Screen Shake
+            if (shakeDuration > 0f)
+            {
+                shakeOffset = Random.insideUnitSphere * shakeMagnitude;
+                shakeDuration -= Time.deltaTime;
+            }
+            else
+            {
+                shakeOffset = Vector3.zero;
+            }
+
             // Target position based on offset
             Vector3 desiredPosition = target.position + offset;
 
-            // Smoothly move the camera towards that desired position
-            Vector3 smoothedPosition = Vector3.Lerp(transform.position, desiredPosition, smoothSpeed * Time.deltaTime);
+            // Smoothly move the camera towards that desired position and add the shake offset
+            Vector3 smoothedPosition = Vector3.Lerp(transform.position, desiredPosition, smoothSpeed * Time.deltaTime) + shakeOffset;
             transform.position = smoothedPosition;
 
             if (lookAtTarget)
@@ -44,7 +66,6 @@ namespace PitchRush
             else
             {
                 // Maintain fixed rotation relative to the target's forward (or just world axis)
-                // We'll keep it simple: just maintain the default pitch rotation.
                 transform.rotation = Quaternion.Euler(defaultRotation);
             }
         }

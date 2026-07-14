@@ -41,6 +41,7 @@ namespace PitchRush
         private Vector3 originalScale;
         private bool wasGrounded = true;
         private float formJumpMultiplier = 1f;
+        private Transform meshHolder;
 
         private void Awake()
         {
@@ -50,19 +51,26 @@ namespace PitchRush
 
             if (visualModel == null && rootMeshFilter != null && rootMeshRenderer != null)
             {
-                // Create a child object for visuals
+                // Create parent visual container (remains upright, handles squash/stretch scale)
                 GameObject visualObj = new GameObject("PlayerVisuals");
                 visualObj.transform.SetParent(transform);
                 visualObj.transform.localPosition = Vector3.zero;
                 visualObj.transform.localRotation = Quaternion.identity;
                 visualObj.transform.localScale = Vector3.one;
 
+                // Create sub-child mesh holder (handles rolling rotation)
+                GameObject meshHolderObj = new GameObject("MeshHolder");
+                meshHolderObj.transform.SetParent(visualObj.transform);
+                meshHolderObj.transform.localPosition = Vector3.zero;
+                meshHolderObj.transform.localRotation = Quaternion.identity;
+                meshHolderObj.transform.localScale = Vector3.one;
+
                 // Copy MeshFilter
-                MeshFilter childFilter = visualObj.AddComponent<MeshFilter>();
+                MeshFilter childFilter = meshHolderObj.AddComponent<MeshFilter>();
                 childFilter.sharedMesh = rootMeshFilter.sharedMesh;
 
                 // Copy MeshRenderer
-                MeshRenderer childRenderer = visualObj.AddComponent<MeshRenderer>();
+                MeshRenderer childRenderer = meshHolderObj.AddComponent<MeshRenderer>();
                 childRenderer.sharedMaterials = rootMeshRenderer.sharedMaterials;
 
                 // Clean up root components so we don't have duplicates
@@ -83,6 +91,11 @@ namespace PitchRush
                 visualModel = transform.GetChild(0);
             }
 
+            if (visualModel != null && visualModel.childCount > 0)
+            {
+                meshHolder = visualModel.GetChild(0);
+            }
+
             if (visualModel != null)
             {
                 originalScale = visualModel.localScale;
@@ -101,6 +114,8 @@ namespace PitchRush
             HandleInput();
             CheckKillZone();
             HandleSquashStretch();
+            HandleMeshRolling();
+            HandleUprightVisualRotation();
         }
 
         void FixedUpdate()
@@ -333,6 +348,36 @@ namespace PitchRush
             }
 
             wasGrounded = grounded;
+        }
+
+        private void HandleMeshRolling()
+        {
+            if (meshHolder == null) return;
+
+            // Roll the visual mesh forward based on current movement speed
+            float forwardSpeed = GameManager.Instance != null ? GameManager.Instance.CurrentSpeed : 10f;
+            float sphereRadius = 0.5f;
+
+            // Angular velocity: speed / radius (converted to degrees per second)
+            float rollSpeedDegrees = (forwardSpeed / sphereRadius) * Mathf.Rad2Deg;
+
+            // Rotate visual mesh around X-axis
+            meshHolder.Rotate(Vector3.right * rollSpeedDegrees * Time.deltaTime, Space.Self);
+        }
+
+        private void HandleUprightVisualRotation()
+        {
+            if (visualModel == null) return;
+
+            // Lock visual model rotation to upright (or 180 degrees flipped if on ceiling)
+            // Add a slight banking tilt when steering left/right
+            float targetZAngle = isCeilingGravityActive ? 180f : 0f;
+            
+            float xVel = rb.linearVelocity.x;
+            float tiltAngle = Mathf.Clamp(-xVel * 1.6f, -12f, 12f); // Bank into turns
+
+            // Smooth rotation transition
+            visualModel.rotation = Quaternion.Euler(0f, 0f, targetZAngle + tiltAngle);
         }
 
         private bool IsGrounded()

@@ -50,6 +50,13 @@ namespace PitchRush
             rb.AddForce(forceDirection * 25f, ForceMode.Impulse);
             rb.AddTorque(Random.insideUnitSphere * 15f, ForceMode.Impulse);
 
+            // Trigger screen shake for heavy impact juice
+            CameraFollow cam = Camera.main.GetComponent<CameraFollow>();
+            if (cam != null)
+            {
+                cam.TriggerShake(0.3f, 0.22f);
+            }
+
             // Optional: destroy the object after 2 seconds to keep the hierarchy clean
             Destroy(gameObject, 2f);
             
