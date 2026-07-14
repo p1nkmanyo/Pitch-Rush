@@ -36,6 +36,13 @@ namespace PitchRush
                     GameManager.Instance.AddCoin(coinValue);
                 }
 
+                // Trigger visual coin inside the ball
+                InnerCoinVisuals innerCoins = other.GetComponent<InnerCoinVisuals>();
+                if (innerCoins != null)
+                {
+                    innerCoins.AddCoinVisual();
+                }
+
                 // Play sound effect or particle effect here if available
 
                 // Instead of destroying, we disable it so it can be reused in the object pool
