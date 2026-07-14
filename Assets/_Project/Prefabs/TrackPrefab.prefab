@@ -256,6 +256,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PitchRush.TrackSegment
   endPoint: {fileID: 8353951348906841363}
+  buffPrefabs:
+  - {fileID: 7617303438128417398, guid: 14da36f3c38781942aa8d80531c0f235, type: 3}
+  buffSpawnChance: 0.53
 --- !u!1 &5576304105238460024
 GameObject:
   m_ObjectHideFlags: 0
