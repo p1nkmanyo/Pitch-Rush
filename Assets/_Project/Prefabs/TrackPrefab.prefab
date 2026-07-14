@@ -264,6 +264,9 @@ MonoBehaviour:
   endPoint: {fileID: 8353951348906841363}
   buffPrefabs:
   - {fileID: 7617303438128417398, guid: 14da36f3c38781942aa8d80531c0f235, type: 3}
+  - {fileID: 1209494091519363870, guid: c34e67ccb44a4574a8a64b0a3bc6b7c6, type: 3}
+  - {fileID: 7644905107421163850, guid: cda8b0ff5c8a01a46882b7b2ce6a06f3, type: 3}
+  - {fileID: 6416342792055413182, guid: e59b0ffe35c09a24694a97e84b4ecb6a, type: 3}
   buffSpawnChance: 0.08
 --- !u!1 &3424968882534011083
 GameObject:
