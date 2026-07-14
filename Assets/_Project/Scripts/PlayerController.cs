@@ -5,6 +5,7 @@ using UnityEngine.EventSystems;
 namespace PitchRush
 {
     [RequireComponent(typeof(Rigidbody))]
+    [RequireComponent(typeof(BuffManager))]
     public class PlayerController : MonoBehaviour
     {
         [Header("Movement Settings")]
