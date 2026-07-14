@@ -90,6 +90,16 @@ namespace PitchRush
                 spawnedVfx.Add(type, vfx);
             }
 
+            // Trigger special buff actions
+            if (type == BuffType.MercuryFlow)
+            {
+                PlayerController controller = GetComponent<PlayerController>();
+                if (controller != null)
+                {
+                    controller.StartMercurySplit();
+                }
+            }
+
             Debug.Log($"Applied buff: {settings.buffName} for {settings.duration} seconds.");
         }
 
@@ -108,6 +118,16 @@ namespace PitchRush
                     Destroy(spawnedVfx[type]);
                 }
                 spawnedVfx.Remove(type);
+            }
+
+            // Trigger special buff end actions
+            if (type == BuffType.MercuryFlow)
+            {
+                PlayerController controller = GetComponent<PlayerController>();
+                if (controller != null)
+                {
+                    controller.StopMercuryMerge();
+                }
             }
 
             Debug.Log($"Removed buff: {type}");
@@ -232,7 +252,7 @@ namespace PitchRush
             Debug.Log("Chrono Rewind finished!");
         }
 
-        private IEnumerator TemporaryInvincibilityCoroutine(float duration)
+        public IEnumerator TemporaryInvincibilityCoroutine(float duration)
         {
             isTemporaryInvincible = true;
 

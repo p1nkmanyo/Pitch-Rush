@@ -27,6 +27,11 @@ namespace PitchRush
         public Transform visualModel;
         public float squashSpeed = 5f;
 
+        [Header("Mercury Split Settings")]
+        public GameObject mercuryClonePrefab;
+        private List<MercuryClone> activeClones = new List<MercuryClone>();
+        private bool isMercuryActive = false;
+
         private Rigidbody rb;
         private float targetX;
 
@@ -247,6 +252,18 @@ namespace PitchRush
             rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
             rb.AddForce(jumpDir * (jumpForce * formJumpMultiplier), ForceMode.Impulse);
 
+            // Synchronize jump for active Mercury clones
+            if (isMercuryActive)
+            {
+                foreach (MercuryClone clone in activeClones)
+                {
+                    if (clone != null)
+                    {
+                        clone.CloneJump(jumpForce * formJumpMultiplier);
+                    }
+                }
+            }
+
             // Instant stretch visual on jump
             if (CurrentForm == BlobForm.Default && visualModel != null)
             {
@@ -394,6 +411,122 @@ namespace PitchRush
             {
                 if (hit.collider.CompareTag("Ground"))
                 {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public void StartMercurySplit()
+        {
+            if (isMercuryActive) return;
+            isMercuryActive = true;
+
+            // Reposition player to center lane (X = 0)
+            targetX = 0f;
+            transform.position = new Vector3(0f, transform.position.y, transform.position.z);
+            rb.linearVelocity = new Vector3(0f, rb.linearVelocity.y, rb.linearVelocity.z);
+
+            // Spawn left and right clones
+            SpawnMercuryClone(-2.5f);
+            SpawnMercuryClone(2.5f);
+        }
+
+        private void SpawnMercuryClone(float offsetX)
+        {
+            GameObject cloneObj = null;
+            if (mercuryClonePrefab != null)
+            {
+                cloneObj = Instantiate(mercuryClonePrefab, transform.position + new Vector3(offsetX, 0f, 0f), Quaternion.identity);
+            }
+            else
+            {
+                // Fallback chrome sphere clone
+                cloneObj = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+                cloneObj.name = "MercuryClone";
+                cloneObj.transform.position = transform.position + new Vector3(offsetX, 0f, 0f);
+                cloneObj.tag = "Player"; // Tag as Player so it triggers collectibles/coins
+
+                Renderer rend = cloneObj.GetComponent<Renderer>();
+                if (rend != null)
+                {
+                    rend.material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+                    rend.material.color = new Color(0.85f, 0.85f, 0.85f);
+                    if (rend.material.HasProperty("_Metallic")) rend.material.SetFloat("_Metallic", 1f);
+                    if (rend.material.HasProperty("_Smoothness")) rend.material.SetFloat("_Smoothness", 0.9f);
+                }
+
+                Rigidbody cloneRb = cloneObj.AddComponent<Rigidbody>();
+                cloneRb.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationY | RigidbodyConstraints.FreezeRotationZ;
+            }
+
+            MercuryClone cloneScript = cloneObj.GetComponent<MercuryClone>();
+            if (cloneScript == null)
+            {
+                cloneScript = cloneObj.AddComponent<MercuryClone>();
+            }
+
+            cloneScript.Initialize(this, offsetX);
+            activeClones.Add(cloneScript);
+        }
+
+        public void StopMercuryMerge()
+        {
+            if (!isMercuryActive) return;
+            isMercuryActive = false;
+
+            // Pull remaining clones back to center player position and merge
+            foreach (MercuryClone clone in activeClones)
+            {
+                if (clone != null)
+                {
+                    clone.SplashAndDestroy();
+                }
+            }
+            activeClones.Clear();
+        }
+
+        public void OnCloneDestroyed(MercuryClone clone)
+        {
+            if (activeClones.Contains(clone))
+            {
+                activeClones.Remove(clone);
+            }
+        }
+
+        public bool ShiftToSurvivingClone()
+        {
+            if (isMercuryActive && activeClones.Count > 0)
+            {
+                MercuryClone survivor = null;
+                foreach (MercuryClone clone in activeClones)
+                {
+                    if (clone != null)
+                    {
+                        survivor = clone;
+                        break;
+                    }
+                }
+
+                if (survivor != null)
+                {
+                    // Snap player to survivor position
+                    transform.position = survivor.transform.position;
+                    targetX = survivor.transform.position.x;
+                    rb.linearVelocity = survivor.GetComponent<Rigidbody>().linearVelocity;
+
+                    // Destroy survivor since player is in its place now
+                    activeClones.Remove(survivor);
+                    survivor.SplashAndDestroy();
+
+                    // Temporary invincibility
+                    BuffManager buffManager = GetComponent<BuffManager>();
+                    if (buffManager != null)
+                    {
+                        buffManager.StartCoroutine(buffManager.TemporaryInvincibilityCoroutine(1.5f));
+                    }
+
+                    Debug.Log("Saved by shifting to surviving Mercury clone!");
                     return true;
                 }
             }

@@ -182,6 +182,15 @@ namespace PitchRush
                         return; // Shield absorbed hit
                     }
 
+                    if (buffManager.IsBuffActive(BuffType.MercuryFlow))
+                    {
+                        PlayerController controller = playerTransform.GetComponent<PlayerController>();
+                        if (controller != null && controller.ShiftToSurvivingClone())
+                        {
+                            return; // Saved by shifting to a clone
+                        }
+                    }
+
                     if (buffManager.TriggerChronoRewind())
                     {
                         return; // Rewind activated, save player
