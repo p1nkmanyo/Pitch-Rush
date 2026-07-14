@@ -1,6 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
+using TMPro;
 
 namespace PitchRush
 {
@@ -9,8 +10,8 @@ namespace PitchRush
         public static GameManager Instance { get; private set; }
 
         [Header("UI Elements")]
-        public Text scoreText;
-        public Text coinsText;
+        public TMP_Text scoreText;
+        public TMP_Text coinsText;
         public GameObject gameOverPanel;
 
         [Header("Player Spawning")]
