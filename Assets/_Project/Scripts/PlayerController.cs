@@ -6,6 +6,8 @@ namespace PitchRush
 {
     [RequireComponent(typeof(Rigidbody))]
     [RequireComponent(typeof(BuffManager))]
+    [RequireComponent(typeof(InnerCoinVisuals))]
+    [RequireComponent(typeof(BlobCustomizer))]
     public class PlayerController : MonoBehaviour
     {
         [Header("Movement Settings")]
@@ -21,6 +23,10 @@ namespace PitchRush
         [Tooltip("If the ball falls below this Y value, it's Game Over.")]
         public float killZoneY = -5f;
 
+        [Header("Visual Deformation (Squash & Stretch)")]
+        public Transform visualModel;
+        public float squashSpeed = 5f;
+
         private Rigidbody rb;
         private float targetX;
 
@@ -28,22 +34,54 @@ namespace PitchRush
         private bool isSwiping = false;
         private Vector2 swipeStartPos;
 
+        // Blob & Roll variables
+        public BlobForm CurrentForm { get; private set; } = BlobForm.Default;
+        private bool isCeilingGravityActive = false;
+        private float ceilingMagnetForce = 0f;
+        private Vector3 originalScale;
+        private bool wasGrounded = true;
+        private float formJumpMultiplier = 1f;
+
         void Start()
         {
             rb = GetComponent<Rigidbody>();
             targetX = transform.position.x;
+
+            if (visualModel == null && transform.childCount > 0)
+            {
+                visualModel = transform.GetChild(0);
+            }
+
+            if (visualModel != null)
+            {
+                originalScale = visualModel.localScale;
+            }
+            else
+            {
+                originalScale = Vector3.one;
+            }
+
+            // Initialize default form settings
+            SetForm(BlobForm.Default);
         }
 
         void Update()
         {
             HandleInput();
             CheckKillZone();
+            HandleSquashStretch();
         }
 
         void FixedUpdate()
         {
             if (GameManager.Instance != null && !GameManager.Instance.IsGameActive)
                 return;
+
+            // Apply custom upward gravity if snapped to ceiling
+            if (isCeilingGravityActive && CurrentForm == BlobForm.HeavyIron)
+            {
+                rb.AddForce(Vector3.up * ceilingMagnetForce, ForceMode.Acceleration);
+            }
 
             // Calculate forward speed from GameManager's progression
             float currentForwardSpeed = GameManager.Instance != null ? GameManager.Instance.CurrentSpeed : 10f;
@@ -52,7 +90,7 @@ namespace PitchRush
             float xDifference = targetX - rb.position.x;
             float targetVelocityX = xDifference * horizontalSpeed;
 
-            // Set velocity directly: horizontal + forward are controlled, Y is left to physics (gravity + jump)
+            // Y velocity is controlled by gravity and jump (unless custom ceiling gravity is applied)
             rb.linearVelocity = new Vector3(targetVelocityX, rb.linearVelocity.y, currentForwardSpeed);
         }
 
@@ -102,8 +140,10 @@ namespace PitchRush
                     // A. Vertical Swipe Detection for Jump (instant during drag)
                     if (isSwiping)
                     {
-                        // We only register jump if they swipe UP specifically
-                        if (delta.y > swipeThreshold && Mathf.Abs(delta.y) > Mathf.Abs(delta.x))
+                        // Register jump on swipe up (when not on ceiling)
+                        // If on ceiling, swipe down to jump (let go)
+                        float swipeDelta = isCeilingGravityActive ? -delta.y : delta.y;
+                        if (swipeDelta > swipeThreshold && Mathf.Abs(delta.y) > Mathf.Abs(delta.x))
                         {
                             if (IsGrounded())
                             {
@@ -114,8 +154,6 @@ namespace PitchRush
                     }
 
                     // B. Direct Screen-Position Steering (Smooth Continuous Drag)
-                    // Map screen X coordinate (0 to Screen.width) to world boundaries (leftBoundary to rightBoundary)
-                    // Skip steering updates during a vertical swipe gesture to prevent horizontal drift/centering
                     if (!isVerticalSwipeIntent)
                     {
                         float normalizedX = currentPointerPos.x / Screen.width;
@@ -154,20 +192,129 @@ namespace PitchRush
 
         private void Jump()
         {
+            if (formJumpMultiplier <= 0f) return; // Heavy Iron cannot jump
+
+            // Ground normal depends on gravity direction
+            Vector3 jumpDir = isCeilingGravityActive ? Vector3.down : Vector3.up;
+
             // Zero out vertical velocity before jumping to ensure consistent jump height
             rb.linearVelocity = new Vector3(rb.linearVelocity.x, 0f, rb.linearVelocity.z);
-            rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+            rb.AddForce(jumpDir * (jumpForce * formJumpMultiplier), ForceMode.Impulse);
+
+            // Instant stretch visual on jump
+            if (CurrentForm == BlobForm.Default && visualModel != null)
+            {
+                visualModel.localScale = new Vector3(originalScale.x * 0.7f, originalScale.y * 1.5f, originalScale.z * 0.7f);
+            }
+        }
+
+        public void SetForm(BlobForm form)
+        {
+            CurrentForm = form;
+
+            if (rb == null) rb = GetComponent<Rigidbody>();
+
+            switch (form)
+            {
+                case BlobForm.Default:
+                    rb.mass = 1f;
+                    formJumpMultiplier = 1f;
+                    rb.useGravity = true;
+                    isCeilingGravityActive = false;
+                    break;
+
+                case BlobForm.HeavyIron:
+                    rb.mass = 5f;
+                    formJumpMultiplier = 0f; // Iron ball cannot jump
+                    break;
+
+                case BlobForm.LightPingPong:
+                    rb.mass = 0.3f;
+                    formJumpMultiplier = 1.8f; // Light ball jumps higher
+                    rb.useGravity = true;
+                    isCeilingGravityActive = false;
+                    break;
+            }
+
+            // Restore scale of visual model
+            if (visualModel != null)
+            {
+                visualModel.localScale = originalScale;
+            }
+
+            // Apply visuals from BlobCustomizer if attached
+            BlobCustomizer customizer = GetComponent<BlobCustomizer>();
+            if (customizer != null)
+            {
+                customizer.ApplyFormVisuals(form);
+            }
+        }
+
+        public void SetCeilingGravity(bool active, float force)
+        {
+            if (CurrentForm != BlobForm.HeavyIron)
+            {
+                // Only Heavy Iron is magnetic enough to stay on ceiling
+                isCeilingGravityActive = false;
+                rb.useGravity = true;
+                return;
+            }
+
+            isCeilingGravityActive = active;
+            ceilingMagnetForce = force;
+            rb.useGravity = !active;
+        }
+
+        private void HandleSquashStretch()
+        {
+            if (visualModel == null) return;
+
+            bool grounded = IsGrounded();
+
+            if (CurrentForm == BlobForm.Default)
+            {
+                if (grounded && !wasGrounded)
+                {
+                    // Just landed! Squash the slime ball
+                    visualModel.localScale = new Vector3(originalScale.x * 1.35f, originalScale.y * 0.65f, originalScale.z * 1.35f);
+                }
+                else if (!grounded)
+                {
+                    // Stretch slime ball in flight based on vertical velocity
+                    float yVel = rb.linearVelocity.y;
+                    float stretchAmount = Mathf.Clamp(yVel * 0.04f, -0.25f, 0.25f);
+                    visualModel.localScale = new Vector3(
+                        originalScale.x * (1f - stretchAmount * 0.5f),
+                        originalScale.y * (1f + stretchAmount),
+                        originalScale.z * (1f - stretchAmount * 0.5f)
+                    );
+                }
+                else
+                {
+                    // Smoothly recover to standard shape when rolling
+                    visualModel.localScale = Vector3.MoveTowards(visualModel.localScale, originalScale, Time.deltaTime * squashSpeed);
+                }
+            }
+            else
+            {
+                // Non-slime forms do not deform physically
+                visualModel.localScale = Vector3.MoveTowards(visualModel.localScale, originalScale, Time.deltaTime * squashSpeed * 2f);
+            }
+
+            wasGrounded = grounded;
         }
 
         private bool IsGrounded()
         {
             SphereCollider sphereCollider = GetComponent<SphereCollider>();
             float radius = sphereCollider != null ? sphereCollider.radius * transform.localScale.y : 0.5f;
-            float castDistance = 0.15f; // Small buffer beneath the ball
+            float castDistance = 0.18f; // Small buffer beneath (or above) the ball
 
-            // SphereCast down to detect the "Ground" tag, ignoring the player's own collider
+            // Cast direction depends on gravity (down for ground, up for ceiling)
+            Vector3 castDir = isCeilingGravityActive ? Vector3.up : Vector3.down;
+
             RaycastHit hit;
-            if (Physics.SphereCast(transform.position, radius * 0.9f, Vector3.down, out hit, radius + castDistance))
+            if (Physics.SphereCast(transform.position, radius * 0.85f, castDir, out hit, radius + castDistance))
             {
                 if (hit.collider.CompareTag("Ground"))
                 {
