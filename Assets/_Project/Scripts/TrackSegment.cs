@@ -25,19 +25,30 @@ namespace PitchRush
         [Tooltip("Maximum random Z offset for obstacle positions (jitter).")]
         public float obstacleZJitter = 2f;
 
+        [Header("Coin Randomization")]
+        [Tooltip("If enabled, coins will be randomly repositioned across lanes each reset.")]
+        public bool randomizeCoins = true;
+        [Range(0f, 1f)]
+        [Tooltip("Chance each individual coin appears (0 = never, 1 = always).")]
+        public float coinVisibilityChance = 0.7f;
+
         private Collectible[] collectibles;
         private Obstacle[] obstacles;
         private List<GameObject> spawnedBuffs = new List<GameObject>();
 
-        // Cached original local positions for each obstacle (for resetting + jittering)
+        // Cached original local positions
         private Vector3[] obstacleOriginalLocalPositions;
+        private Vector3[] coinOriginalLocalPositions;
+
+        // Lane X positions for random coin placement
+        private float[] laneXPositions = new float[] { -3f, 0f, 3f };
 
         private void Awake()
         {
             collectibles = GetComponentsInChildren<Collectible>(true);
             obstacles = GetComponentsInChildren<Obstacle>(true);
 
-            // Cache the original local positions of all obstacles
+            // Cache original positions of all obstacles
             if (obstacles != null)
             {
                 obstacleOriginalLocalPositions = new Vector3[obstacles.Length];
@@ -46,11 +57,21 @@ namespace PitchRush
                     obstacleOriginalLocalPositions[i] = obstacles[i].transform.localPosition;
                 }
             }
+
+            // Cache original positions of all coins
+            if (collectibles != null)
+            {
+                coinOriginalLocalPositions = new Vector3[collectibles.Length];
+                for (int i = 0; i < collectibles.Length; i++)
+                {
+                    coinOriginalLocalPositions[i] = collectibles[i].transform.localPosition;
+                }
+            }
         }
 
         public void ResetSegment()
         {
-            // Clear previously spawned buffs using ObjectPool instead of Destroy (0 GC Alloc!)
+            // Clear previously spawned buffs using ObjectPool (0 GC Alloc!)
             foreach (GameObject buff in spawnedBuffs)
             {
                 if (buff != null && ObjectPool.Instance != null)
@@ -59,7 +80,7 @@ namespace PitchRush
                 }
                 else if (buff != null)
                 {
-                    Destroy(buff); // Fallback
+                    Destroy(buff);
                 }
             }
             spawnedBuffs.Clear();
@@ -67,32 +88,45 @@ namespace PitchRush
             // Reset and randomize obstacles
             if (obstacles != null)
             {
-                // First reset all obstacles to intact/active state
                 for (int i = 0; i < obstacles.Length; i++)
                 {
                     if (obstacles[i] != null)
                     {
                         obstacles[i].ResetObstacle();
                         obstacles[i].gameObject.SetActive(true);
-
-                        // Reset to original position
                         obstacles[i].transform.localPosition = obstacleOriginalLocalPositions[i];
                     }
                 }
 
-                // Then randomize if enabled
                 if (randomizeObstacles)
                 {
                     RandomizeObstacles();
                 }
             }
 
-            // Reactivate collectibles or replace them with buffs
+            // Reset and randomize coins
             if (collectibles != null)
             {
+                // First reset all coins to original positions and activate
+                for (int i = 0; i < collectibles.Length; i++)
+                {
+                    if (collectibles[i] != null)
+                    {
+                        collectibles[i].transform.localPosition = coinOriginalLocalPositions[i];
+                        collectibles[i].gameObject.SetActive(true);
+                    }
+                }
+
+                // Then randomize positions and visibility
+                if (randomizeCoins)
+                {
+                    RandomizeCoins();
+                }
+
+                // Finally, roll buff replacements on visible coins
                 foreach (Collectible coin in collectibles)
                 {
-                    if (coin != null)
+                    if (coin != null && coin.gameObject.activeSelf)
                     {
                         if (buffPrefabs != null && buffPrefabs.Length > 0 && Random.value < buffSpawnChance)
                         {
@@ -118,12 +152,60 @@ namespace PitchRush
                                 }
                             }
                         }
-                        else
-                        {
-                            coin.gameObject.SetActive(true);
-                        }
                     }
                 }
+            }
+        }
+
+        private void RandomizeCoins()
+        {
+            if (collectibles == null || collectibles.Length == 0) return;
+
+            // Pick a random lane for this coin group (all coins in one line = satisfying to collect)
+            int chosenLane = Random.Range(0, laneXPositions.Length);
+            float laneX = laneXPositions[chosenLane];
+
+            // Sometimes scatter coins across different lanes instead of one line
+            bool scatterMode = Random.value > 0.6f; // 40% chance of scattered coins
+
+            // Calculate segment length from endPoint
+            float segmentLength = 20f;
+            if (endPoint != null)
+            {
+                segmentLength = Mathf.Abs(endPoint.localPosition.z);
+                if (segmentLength < 5f) segmentLength = 20f;
+            }
+
+            float coinSpacing = segmentLength / (collectibles.Length + 1);
+
+            for (int i = 0; i < collectibles.Length; i++)
+            {
+                if (collectibles[i] == null) continue;
+
+                // Roll visibility chance per coin
+                if (Random.value > coinVisibilityChance)
+                {
+                    collectibles[i].gameObject.SetActive(false);
+                    continue;
+                }
+
+                collectibles[i].gameObject.SetActive(true);
+
+                // Calculate new position
+                float coinX;
+                if (scatterMode)
+                {
+                    coinX = laneXPositions[Random.Range(0, laneXPositions.Length)];
+                }
+                else
+                {
+                    coinX = laneX;
+                }
+
+                float coinZ = coinSpacing * (i + 1) + Random.Range(-0.5f, 0.5f);
+                float coinY = coinOriginalLocalPositions[i].y; // Keep original height
+
+                collectibles[i].transform.localPosition = new Vector3(coinX, coinY, coinZ);
             }
         }
 
