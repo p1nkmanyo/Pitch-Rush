@@ -129,6 +129,15 @@ namespace PitchRush
             SetForm(BlobForm.Default);
         }
 
+        /// <summary>
+        /// Resets the lateral position (steering) to center of the road.
+        /// Called by TrackManager after a turn segment completes.
+        /// </summary>
+        public void ResetLateralPosition()
+        {
+            targetX = 0f;
+        }
+
         void Update()
         {
             HandleInput();
@@ -153,9 +162,7 @@ namespace PitchRush
             else if (isWallRunning && CurrentForm == BlobForm.Default)
             {
                 rb.useGravity = false;
-                // Pull towards wall normal
                 rb.AddForce(-wallRunNormal * wallGravityForce, ForceMode.Acceleration);
-                // Also pull down towards track
                 rb.AddForce(Physics.gravity, ForceMode.Acceleration);
             }
             else
@@ -163,15 +170,38 @@ namespace PitchRush
                 rb.useGravity = true;
             }
 
-            // Calculate forward speed from GameManager's progression
             float currentForwardSpeed = GameManager.Instance != null ? GameManager.Instance.CurrentSpeed : 10f;
 
-            // Calculate horizontal velocity needed to reach target X
-            float xDifference = targetX - rb.position.x;
-            float targetVelocityX = xDifference * horizontalSpeed;
+            // Get current track direction from TrackManager (supports turns!)
+            TrackManager tm = GameManager.Instance != null ? 
+                GameManager.Instance.trackManager : FindAnyObjectByType<TrackManager>();
 
-            // Y velocity is controlled by gravity and jump (unless custom ceiling gravity is applied)
-            rb.linearVelocity = new Vector3(targetVelocityX, rb.linearVelocity.y, currentForwardSpeed);
+            Vector3 forwardDir = Vector3.forward;
+            Vector3 lateralDir = Vector3.right;
+
+            if (tm != null)
+            {
+                forwardDir = tm.CurrentDirection;
+                lateralDir = Vector3.Cross(Vector3.up, forwardDir).normalized;
+            }
+
+            // Project player position onto lateral axis to calculate steering offset
+            float currentLateral = Vector3.Dot(rb.position, lateralDir);
+            float lateralDifference = targetX - currentLateral;
+            float lateralVelocity = lateralDifference * horizontalSpeed;
+
+            // Compose final velocity: forward + lateral + vertical (gravity/jump)
+            Vector3 finalVelocity = forwardDir * currentForwardSpeed + lateralDir * lateralVelocity;
+            finalVelocity.y = rb.linearVelocity.y;
+
+            rb.linearVelocity = finalVelocity;
+
+            // Smoothly rotate the player to face the current direction
+            if (forwardDir != Vector3.zero)
+            {
+                Quaternion targetRotation = Quaternion.LookRotation(forwardDir, Vector3.up);
+                rb.MoveRotation(Quaternion.Slerp(rb.rotation, targetRotation, 8f * Time.fixedDeltaTime));
+            }
         }
 
         private void CheckKillZone()

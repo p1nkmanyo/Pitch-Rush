@@ -73,14 +73,19 @@ namespace PitchRush
             // Interpolate camera up vector to avoid sudden jarring rotation
             currentCameraUp = Vector3.Slerp(currentCameraUp, targetUp, 4f * Time.deltaTime);
 
-            // Target position based on offset (we modify the offset dynamically if upside down to keep view comfortable)
+            // Target position based on offset, rotated by current track direction (supports turns!)
             Vector3 dynamicOffset = offset;
             if (player != null && player.IsCeilingGravityActive)
             {
-                dynamicOffset.y = -offset.y; // Flip offset vertical axis
+                dynamicOffset.y = -offset.y;
             }
 
-            Vector3 desiredPosition = target.position + dynamicOffset;
+            // Rotate offset to follow behind the player even after turns
+            TrackManager tm = FindAnyObjectByType<TrackManager>();
+            Quaternion trackRot = (tm != null) ? tm.CurrentRotation : Quaternion.identity;
+            Vector3 rotatedOffset = trackRot * dynamicOffset;
+
+            Vector3 desiredPosition = target.position + rotatedOffset;
 
             // Smoothly move the camera towards that desired position and add the shake offset
             Vector3 smoothedPosition = Vector3.Lerp(transform.position, desiredPosition, smoothSpeed * Time.deltaTime) + shakeOffset;
