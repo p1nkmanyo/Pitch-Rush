@@ -64,7 +64,7 @@ namespace PitchRush
             {
                 if (i == 0)
                 {
-                    SpawnTrack(0);
+                    SpawnTrack(0, false); // First track is 100% safe (no obstacles)
                 }
                 else
                 {
@@ -250,7 +250,7 @@ namespace PitchRush
             }
         }
 
-        private void SpawnTrack(int prefabIndex)
+        private void SpawnTrack(int prefabIndex, bool spawnObstacles = true)
         {
             if (trackPrefabs.Length == 0) return;
 
@@ -263,7 +263,7 @@ namespace PitchRush
             TrackSegment segment = track.GetComponent<TrackSegment>();
             if (segment != null)
             {
-                segment.ResetSegment();
+                segment.ResetSegment(spawnObstacles);
                 nextSpawnPosition = segment.endPoint.position;
             }
             else
