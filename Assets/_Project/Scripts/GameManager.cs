@@ -124,18 +124,15 @@ namespace PitchRush
 
             CurrentSpeed = targetProgressionSpeed * speedMultiplier;
 
-            // Score increases based on distance traveled (Z axis)
-            // Assuming player starts at Z=0
-            if (playerTransform.position.z > score)
+            // Score increases incrementally based on distance traveled (independent of coordinate axes! 0 GC Alloc!)
+            float lastScore = score;
+            score += CurrentSpeed * Time.deltaTime;
+            UpdateUI();
+            
+            // Small pulse for every 10 points threshold
+            if (scoreText != null && Mathf.FloorToInt(score) / 10 > Mathf.FloorToInt(lastScore) / 10)
             {
-                score = playerTransform.position.z;
-                UpdateUI();
-                
-                // Small pulse for every 10 points threshold
-                if (scoreText != null && Mathf.FloorToInt(score) % 10 == 0)
-                {
-                    scoreText.transform.localScale = scoreTextOriginalScale * 1.15f;
-                }
+                scoreText.transform.localScale = scoreTextOriginalScale * 1.15f;
             }
 
             // Smoothly restore UI text scales for juiciness

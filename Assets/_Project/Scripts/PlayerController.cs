@@ -178,15 +178,18 @@ namespace PitchRush
 
             Vector3 forwardDir = Vector3.forward;
             Vector3 lateralDir = Vector3.right;
+            Vector3 pivot = Vector3.zero;
 
             if (tm != null)
             {
                 forwardDir = tm.CurrentDirection;
                 lateralDir = Vector3.Cross(Vector3.up, forwardDir).normalized;
+                pivot = tm.PivotPoint;
             }
 
-            // Project player position onto lateral axis to calculate steering offset
-            float currentLateral = Vector3.Dot(rb.position, lateralDir);
+            // Project player position relative to the pivot point onto the lateral axis to calculate steering offset (0 GC Alloc!)
+            Vector3 relativePos = rb.position - pivot;
+            float currentLateral = Vector3.Dot(relativePos, lateralDir);
             float lateralDifference = targetX - currentLateral;
             float lateralVelocity = lateralDifference * horizontalSpeed;
 

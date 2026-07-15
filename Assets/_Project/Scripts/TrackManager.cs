@@ -24,9 +24,14 @@ namespace PitchRush
         public Transform playerTransform;
         public float safeZone = 30f;
 
-        // Current track direction state (world-space forward for the runner)
+        // Current track direction state (world-space forward for the active player path)
         public Vector3 CurrentDirection { get; private set; } = Vector3.forward;
         public Quaternion CurrentRotation { get; private set; } = Quaternion.identity;
+        public Vector3 PivotPoint { get; private set; } = Vector3.zero;
+
+        // Path generation state (used for positioning prefabs ahead of the player)
+        private Vector3 genDirection = Vector3.forward;
+        private Quaternion genRotation = Quaternion.identity;
 
         private Vector3 nextSpawnPosition = Vector3.zero;
         private List<(GameObject trackObj, int prefabIndex)> activeTracks = new List<(GameObject, int)>();
@@ -77,35 +82,14 @@ namespace PitchRush
                 GameObject oldestTrack = activeTracks[0].trackObj;
                 TrackSegment segment = oldestTrack.GetComponent<TrackSegment>();
 
-                float playerProgress = Vector3.Dot(playerTransform.position, CurrentDirection);
-                float trackEnd = 0f;
+                // Check distance along the oldest track's local forward axis (100% direction-independent!)
+                Vector3 playerToTrack = oldestTrack.transform.position - playerTransform.position;
+                float dot = Vector3.Dot(playerToTrack, oldestTrack.transform.forward);
 
-                if (segment != null && segment.endPoint != null)
+                if (dot < -safeZone || Vector3.Distance(playerTransform.position, oldestTrack.transform.position) > safeZone * 2.5f)
                 {
-                    trackEnd = Vector3.Dot(segment.endPoint.position, CurrentDirection);
-
-                    // Also check distance on the previous direction axis if the track was a turn
-                    float distBehind = playerProgress - trackEnd;
-                    float distOldAxis = Vector3.Distance(
-                        Vector3.Project(playerTransform.position, CurrentDirection),
-                        Vector3.Project(oldestTrack.transform.position, CurrentDirection)
-                    );
-
-                    if (distBehind > safeZone || distOldAxis > safeZone * 2f)
-                    {
-                        SpawnStraightOrTurn();
-                        RecycleOldestTrack();
-                    }
-                }
-                else
-                {
-                    // Fallback
-                    float fallbackEnd = Vector3.Dot(oldestTrack.transform.position, CurrentDirection) + 20f;
-                    if (playerProgress - safeZone > fallbackEnd)
-                    {
-                        SpawnStraightOrTurn();
-                        RecycleOldestTrack();
-                    }
+                    SpawnStraightOrTurn();
+                    RecycleOldestTrack();
                 }
             }
         }
@@ -129,10 +113,8 @@ namespace PitchRush
 
         private void SpawnTurnSegment()
         {
-            // Randomly choose left or right turn
             bool goLeft = Random.value > 0.5f;
 
-            // If only one turn prefab exists, use that one
             if (turnLeftPrefab != null && turnRightPrefab == null) goLeft = true;
             if (turnRightPrefab != null && turnLeftPrefab == null) goLeft = false;
 
@@ -141,7 +123,6 @@ namespace PitchRush
 
             if (turnPrefab == null)
             {
-                // Fallback to straight
                 SpawnTrack(Random.Range(0, trackPrefabs.Length));
                 straightCountSinceLastTurn++;
                 return;
@@ -149,8 +130,9 @@ namespace PitchRush
 
             GameObject track = GetFromPool(poolIndex, turnPrefab);
 
+            // Position using the generation rotation state (NOT player active rotation!)
             track.transform.position = nextSpawnPosition;
-            track.transform.rotation = CurrentRotation;
+            track.transform.rotation = genRotation;
             track.SetActive(true);
 
             TrackSegment segment = track.GetComponent<TrackSegment>();
@@ -161,22 +143,54 @@ namespace PitchRush
             }
             else
             {
-                nextSpawnPosition += CurrentDirection * 20f;
+                nextSpawnPosition += genDirection * 20f;
             }
 
-            // Update direction: rotate 90 degrees left or right around Y axis
+            // Update path generation direction (rotate 90 degrees left or right around Y axis)
             float yAngle = goLeft ? -90f : 90f;
+            genRotation *= Quaternion.Euler(0f, yAngle, 0f);
+            genDirection = genRotation * Vector3.forward;
+
+            // Auto-configure TurnTrigger component dynamically so the user doesn't have to do it in editor
+            TurnTrigger trigger = track.GetComponentInChildren<TurnTrigger>();
+            if (trigger == null)
+            {
+                Collider col = track.GetComponentInChildren<Collider>();
+                if (col != null && col.isTrigger)
+                {
+                    trigger = col.gameObject.AddComponent<TurnTrigger>();
+                }
+                else
+                {
+                    GameObject triggerObj = new GameObject("TurnTrigger");
+                    triggerObj.transform.SetParent(track.transform, false);
+                    BoxCollider box = triggerObj.AddComponent<BoxCollider>();
+                    box.isTrigger = true;
+                    box.size = new Vector3(12f, 6f, 3f);
+                    // Move it slightly forward to trigger exactly at the center of the turn
+                    triggerObj.transform.localPosition = new Vector3(0f, 1f, 0f);
+                    trigger = triggerObj.AddComponent<TurnTrigger>();
+                }
+            }
+            trigger.turnAngle = yAngle;
+
+            activeTracks.Add((track, poolIndex));
+        }
+
+        public void TriggerTurn(float yAngle, Vector3 newPivotPoint)
+        {
             CurrentRotation *= Quaternion.Euler(0f, yAngle, 0f);
             CurrentDirection = CurrentRotation * Vector3.forward;
+            PivotPoint = newPivotPoint;
 
-            // Reset player steering to center after turn
+            // Reset player steering to center of the new lane
             if (playerTransform != null)
             {
                 PlayerController pc = playerTransform.GetComponent<PlayerController>();
                 if (pc != null) pc.ResetLateralPosition();
             }
 
-            activeTracks.Add((track, poolIndex));
+            Debug.Log($"Turn executed! New Direction: {CurrentDirection}, New Pivot: {PivotPoint}");
         }
 
         private void InitializePool()
@@ -243,7 +257,7 @@ namespace PitchRush
             GameObject track = GetFromPool(prefabIndex, trackPrefabs[prefabIndex]);
 
             track.transform.position = nextSpawnPosition;
-            track.transform.rotation = CurrentRotation;
+            track.transform.rotation = genRotation;
             track.SetActive(true);
 
             TrackSegment segment = track.GetComponent<TrackSegment>();
@@ -254,7 +268,7 @@ namespace PitchRush
             }
             else
             {
-                nextSpawnPosition += CurrentDirection * 20f;
+                nextSpawnPosition += genDirection * 20f;
             }
 
             activeTracks.Add((track, prefabIndex));

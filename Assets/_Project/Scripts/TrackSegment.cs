@@ -71,6 +71,13 @@ namespace PitchRush
 
         public void ResetSegment()
         {
+            // Reset any TurnTrigger components on this segment (0 GC Alloc!)
+            TurnTrigger[] turnTriggers = GetComponentsInChildren<TurnTrigger>(true);
+            foreach (TurnTrigger tt in turnTriggers)
+            {
+                if (tt != null) tt.ResetTrigger();
+            }
+
             // Clear previously spawned buffs using ObjectPool (0 GC Alloc!)
             foreach (GameObject buff in spawnedBuffs)
             {
