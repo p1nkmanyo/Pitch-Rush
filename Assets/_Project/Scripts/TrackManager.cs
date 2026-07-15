@@ -82,11 +82,18 @@ namespace PitchRush
                 GameObject oldestTrack = activeTracks[0].trackObj;
                 TrackSegment segment = oldestTrack.GetComponent<TrackSegment>();
 
-                // Check distance along the oldest track's local forward axis (100% direction-independent!)
-                Vector3 playerToTrack = oldestTrack.transform.position - playerTransform.position;
-                float dot = Vector3.Dot(playerToTrack, oldestTrack.transform.forward);
+                // Calculate progress relative to the END of the oldest track segment (prevent early recycling!)
+                Vector3 refPosition = oldestTrack.transform.position + oldestTrack.transform.forward * 20f;
+                if (segment != null && segment.endPoint != null)
+                {
+                    refPosition = segment.endPoint.position;
+                }
 
-                if (dot < -safeZone || Vector3.Distance(playerTransform.position, oldestTrack.transform.position) > safeZone * 2.5f)
+                Vector3 playerToRef = refPosition - playerTransform.position;
+                float dot = Vector3.Dot(playerToRef, oldestTrack.transform.forward);
+
+                // Recycle only if the player is safely past the END of the track by safeZone distance
+                if (dot < -safeZone)
                 {
                     SpawnStraightOrTurn();
                     RecycleOldestTrack();
