@@ -36,9 +36,11 @@ namespace PitchRush
         private Obstacle[] obstacles;
         private List<GameObject> spawnedBuffs = new List<GameObject>();
 
-        // Cached original local positions
+        // Cached original local positions and scales
         private Vector3[] obstacleOriginalLocalPositions;
         private Vector3[] coinOriginalLocalPositions;
+        private Vector3[] obstacleOriginalLocalScales;
+        private Vector3[] coinOriginalLocalScales;
 
         // Lane X positions for random coin placement
         private float[] laneXPositions = new float[] { -3f, 0f, 3f };
@@ -48,23 +50,27 @@ namespace PitchRush
             collectibles = GetComponentsInChildren<Collectible>(true);
             obstacles = GetComponentsInChildren<Obstacle>(true);
 
-            // Cache original positions of all obstacles
+            // Cache original positions and scales of all obstacles
             if (obstacles != null)
             {
                 obstacleOriginalLocalPositions = new Vector3[obstacles.Length];
+                obstacleOriginalLocalScales = new Vector3[obstacles.Length];
                 for (int i = 0; i < obstacles.Length; i++)
                 {
                     obstacleOriginalLocalPositions[i] = obstacles[i].transform.localPosition;
+                    obstacleOriginalLocalScales[i] = obstacles[i].transform.localScale;
                 }
             }
 
-            // Cache original positions of all coins
+            // Cache original positions and scales of all coins
             if (collectibles != null)
             {
                 coinOriginalLocalPositions = new Vector3[collectibles.Length];
+                coinOriginalLocalScales = new Vector3[collectibles.Length];
                 for (int i = 0; i < collectibles.Length; i++)
                 {
                     coinOriginalLocalPositions[i] = collectibles[i].transform.localPosition;
+                    coinOriginalLocalScales[i] = collectibles[i].transform.localScale;
                 }
             }
         }
@@ -101,7 +107,18 @@ namespace PitchRush
                     {
                         obstacles[i].ResetObstacle();
                         obstacles[i].gameObject.SetActive(spawnObstacles);
-                        obstacles[i].transform.localPosition = obstacleOriginalLocalPositions[i];
+                        
+                        // Reset to original positions and scales, correcting for parent scaling
+                        obstacles[i].transform.localPosition = new Vector3(
+                            obstacleOriginalLocalPositions[i].x / transform.localScale.x,
+                            obstacleOriginalLocalPositions[i].y / transform.localScale.y,
+                            obstacleOriginalLocalPositions[i].z / transform.localScale.z
+                        );
+                        obstacles[i].transform.localScale = new Vector3(
+                            obstacleOriginalLocalScales[i].x / transform.localScale.x,
+                            obstacleOriginalLocalScales[i].y / transform.localScale.y,
+                            obstacleOriginalLocalScales[i].z / transform.localScale.z
+                        );
                     }
                 }
 
@@ -181,7 +198,18 @@ namespace PitchRush
                 {
                     // Apply random jitter to Z position for dynamic feel
                     float jitter = Random.Range(-obstacleZJitter, obstacleZJitter);
-                    obstacles[i].transform.localPosition = new Vector3(laneX, obstacleOriginalLocalPositions[i].y, obstacleZ + jitter);
+                    float targetZ = obstacleZ + jitter;
+                    
+                    // Divide positions and scales by parent scale to completely cancel parent distortion!
+                    float localX = laneX / transform.localScale.x;
+                    float localY = obstacleOriginalLocalPositions[i].y / transform.localScale.y;
+                    float localZ = targetZ / transform.localScale.z;
+                    obstacles[i].transform.localPosition = new Vector3(localX, localY, localZ);
+
+                    float scaleX = obstacleOriginalLocalScales[i].x / transform.localScale.x;
+                    float scaleY = obstacleOriginalLocalScales[i].y / transform.localScale.y;
+                    float scaleZ = obstacleOriginalLocalScales[i].z / transform.localScale.z;
+                    obstacles[i].transform.localScale = new Vector3(scaleX, scaleY, scaleZ);
                 }
             }
 
@@ -200,6 +228,9 @@ namespace PitchRush
             {
                 if (collectibles[i] == null) continue;
 
+                // Reset default scales initially
+                collectibles[i].transform.localScale = coinOriginalLocalScales[i];
+
                 // Roll visibility chance per coin
                 if (Random.value > coinVisibilityChance)
                 {
@@ -213,7 +244,16 @@ namespace PitchRush
                 float coinZ = spacing * (i + 1);
                 float coinY = coinOriginalLocalPositions[i].y;
 
-                collectibles[i].transform.localPosition = new Vector3(laneX, coinY, coinZ);
+                // Divide positions and scales by parent scale to completely cancel parent distortion!
+                float localX = laneX / transform.localScale.x;
+                float localY = coinY / transform.localScale.y;
+                float localZ = coinZ / transform.localScale.z;
+                collectibles[i].transform.localPosition = new Vector3(localX, localY, localZ);
+
+                float scaleX = coinOriginalLocalScales[i].x / transform.localScale.x;
+                float scaleY = coinOriginalLocalScales[i].y / transform.localScale.y;
+                float scaleZ = coinOriginalLocalScales[i].z / transform.localScale.z;
+                collectibles[i].transform.localScale = new Vector3(scaleX, scaleY, scaleZ);
 
                 // Roll buff replacements on active coins
                 if (buffPrefabs != null && buffPrefabs.Length > 0 && Random.value < buffSpawnChance)
