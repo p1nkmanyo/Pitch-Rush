@@ -573,9 +573,23 @@ namespace PitchRush
             return false;
         }
 
+        private bool CompareTagSafe(GameObject obj, string tagName)
+        {
+            if (obj == null) return false;
+            if (obj.name.Contains(tagName)) return true;
+            try
+            {
+                return obj.CompareTag(tagName);
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         private void OnCollisionStay(Collision collision)
         {
-            if (collision.gameObject.CompareTag("StickyWall") && CurrentForm == BlobForm.Default)
+            if (CompareTagSafe(collision.gameObject, "StickyWall") && CurrentForm == BlobForm.Default)
             {
                 isWallRunning = true;
                 wallRunNormal = collision.contacts[0].normal;
@@ -584,7 +598,7 @@ namespace PitchRush
 
         private void OnCollisionExit(Collision collision)
         {
-            if (collision.gameObject.CompareTag("StickyWall"))
+            if (CompareTagSafe(collision.gameObject, "StickyWall"))
             {
                 isWallRunning = false;
                 wallRunNormal = Vector3.zero;
@@ -593,7 +607,7 @@ namespace PitchRush
 
         private void OnTriggerEnter(Collider other)
         {
-            if (other.CompareTag("ColorPickup"))
+            if (CompareTagSafe(other.gameObject, "ColorPickup"))
             {
                 // In Unity, the color pickup can have a simple ColorContainer script that stores its color
                 ColorContainer cc = other.GetComponent<ColorContainer>();
@@ -603,7 +617,7 @@ namespace PitchRush
                 }
                 other.gameObject.SetActive(false); // Hide pickup (0 GC Alloc!)
             }
-            else if (other.CompareTag("WashPuddle"))
+            else if (CompareTagSafe(other.gameObject, "WashPuddle"))
             {
                 // Wash away the paint and return to default slime color
                 SetSlimeColor(defaultSlimeColor);
