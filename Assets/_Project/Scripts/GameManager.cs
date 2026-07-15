@@ -96,8 +96,8 @@ namespace PitchRush
                 GameObject playerObj = Instantiate(prefabToSpawn, playerSpawnPosition, Quaternion.identity);
                 playerTransform = playerObj.transform;
 
-                if (cameraFollow == null) cameraFollow = FindFirstObjectByType<CameraFollow>();
-                if (trackManager == null) trackManager = FindFirstObjectByType<TrackManager>();
+                if (cameraFollow == null) cameraFollow = FindAnyObjectByType<CameraFollow>();
+                if (trackManager == null) trackManager = FindAnyObjectByType<TrackManager>();
 
                 if (cameraFollow != null) cameraFollow.target = playerTransform;
                 if (trackManager != null) trackManager.playerTransform = playerTransform;
