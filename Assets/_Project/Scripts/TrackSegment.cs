@@ -69,7 +69,7 @@ namespace PitchRush
             }
         }
 
-        public void ResetSegment()
+        public void ResetSegment(bool spawnObstacles = true)
         {
             // Reset any TurnTrigger components on this segment (0 GC Alloc!)
             TurnTrigger[] turnTriggers = GetComponentsInChildren<TurnTrigger>(true);
@@ -100,90 +100,101 @@ namespace PitchRush
                     if (obstacles[i] != null)
                     {
                         obstacles[i].ResetObstacle();
-                        obstacles[i].gameObject.SetActive(true);
+                        obstacles[i].gameObject.SetActive(spawnObstacles);
                         obstacles[i].transform.localPosition = obstacleOriginalLocalPositions[i];
                     }
                 }
 
-                if (randomizeObstacles)
+                if (spawnObstacles && randomizeObstacles)
                 {
-                    RandomizeObstacles();
+                    RandomizeLayout();
                 }
-            }
-
-            // Reset and randomize coins
-            if (collectibles != null)
-            {
-                // First reset all coins to original positions and activate
-                for (int i = 0; i < collectibles.Length; i++)
+                else
                 {
-                    if (collectibles[i] != null)
-                    {
-                        collectibles[i].transform.localPosition = coinOriginalLocalPositions[i];
-                        collectibles[i].gameObject.SetActive(true);
-                    }
-                }
-
-                // Then randomize positions and visibility
-                if (randomizeCoins)
-                {
-                    RandomizeCoins();
-                }
-
-                // Finally, roll buff replacements on visible coins
-                foreach (Collectible coin in collectibles)
-                {
-                    if (coin != null && coin.gameObject.activeSelf)
-                    {
-                        if (buffPrefabs != null && buffPrefabs.Length > 0 && Random.value < buffSpawnChance)
-                        {
-                            coin.gameObject.SetActive(false);
-
-                            GameObject selectedBuffPrefab = buffPrefabs[Random.Range(0, buffPrefabs.Length)];
-                            if (selectedBuffPrefab != null)
-                            {
-                                GameObject buffInstance = null;
-                                if (ObjectPool.Instance != null)
-                                {
-                                    buffInstance = ObjectPool.Instance.Spawn(selectedBuffPrefab, coin.transform.position, Quaternion.identity);
-                                    buffInstance.transform.SetParent(transform);
-                                }
-                                else
-                                {
-                                    buffInstance = Instantiate(selectedBuffPrefab, coin.transform.position, Quaternion.identity, transform);
-                                }
-
-                                if (buffInstance != null)
-                                {
-                                    spawnedBuffs.Add(buffInstance);
-                                }
-                            }
-                        }
-                    }
+                    // If no obstacles, place all coins in the center lane (safe zone)
+                    PlaceCoinsInLane(0f);
                 }
             }
         }
 
-        private void RandomizeCoins()
+        private void RandomizeLayout()
+        {
+            if (obstacles == null || obstacles.Length < 3) return;
+
+            // Choose a random obstacle pattern (0 to 5)
+            // Left=0, Center=1, Right=2
+            int pattern = Random.Range(0, 6);
+            
+            bool spawnLeft = false;
+            bool spawnCenter = false;
+            bool spawnRight = false;
+            int safeLane = 1; // Default center is safe
+
+            switch (pattern)
+            {
+                case 0: // Left lane blocked
+                    spawnLeft = true;
+                    safeLane = Random.value > 0.5f ? 1 : 2; // Center or Right is safe
+                    break;
+                case 1: // Center lane blocked
+                    spawnCenter = true;
+                    safeLane = Random.value > 0.5f ? 0 : 2; // Left or Right is safe
+                    break;
+                case 2: // Right lane blocked
+                    spawnRight = true;
+                    safeLane = Random.value > 0.5f ? 0 : 1; // Left or Center is safe
+                    break;
+                case 3: // Left + Center blocked (Right is safe)
+                    spawnLeft = true;
+                    spawnCenter = true;
+                    safeLane = 2;
+                    break;
+                case 4: // Center + Right blocked (Left is safe)
+                    spawnCenter = true;
+                    spawnRight = true;
+                    safeLane = 0;
+                    break;
+                case 5: // Left + Right blocked (Center is safe)
+                    spawnLeft = true;
+                    spawnRight = true;
+                    safeLane = 1;
+                    break;
+            }
+
+            // Set active states and Z positions for obstacles (placed in the middle of segment)
+            float segmentLength = GetSegmentLength();
+            float obstacleZ = segmentLength * 0.5f;
+
+            for (int i = 0; i < obstacles.Length; i++)
+            {
+                if (obstacles[i] == null) continue;
+
+                bool isActive = false;
+                float laneX = 0f;
+
+                if (i == 0) { isActive = spawnLeft; laneX = laneXPositions[0]; }
+                else if (i == 1) { isActive = spawnCenter; laneX = laneXPositions[1]; }
+                else if (i == 2) { isActive = spawnRight; laneX = laneXPositions[2]; }
+
+                obstacles[i].gameObject.SetActive(isActive);
+                if (isActive)
+                {
+                    // Apply random jitter to Z position for dynamic feel
+                    float jitter = Random.Range(-obstacleZJitter, obstacleZJitter);
+                    obstacles[i].transform.localPosition = new Vector3(laneX, obstacleOriginalLocalPositions[i].y, obstacleZ + jitter);
+                }
+            }
+
+            // Place coins in the designated safe lane
+            PlaceCoinsInLane(laneXPositions[safeLane]);
+        }
+
+        private void PlaceCoinsInLane(float laneX)
         {
             if (collectibles == null || collectibles.Length == 0) return;
 
-            // Pick a random lane for this coin group (all coins in one line = satisfying to collect)
-            int chosenLane = Random.Range(0, laneXPositions.Length);
-            float laneX = laneXPositions[chosenLane];
-
-            // Sometimes scatter coins across different lanes instead of one line
-            bool scatterMode = Random.value > 0.6f; // 40% chance of scattered coins
-
-            // Calculate segment length from endPoint
-            float segmentLength = 20f;
-            if (endPoint != null)
-            {
-                segmentLength = Mathf.Abs(endPoint.localPosition.z);
-                if (segmentLength < 5f) segmentLength = 20f;
-            }
-
-            float coinSpacing = segmentLength / (collectibles.Length + 1);
+            float segmentLength = GetSegmentLength();
+            float spacing = segmentLength / (collectibles.Length + 1);
 
             for (int i = 0; i < collectibles.Length; i++)
             {
@@ -198,101 +209,48 @@ namespace PitchRush
 
                 collectibles[i].gameObject.SetActive(true);
 
-                // Calculate new position
-                float coinX;
-                if (scatterMode)
+                // Place the coin neatly spaced along the safe lane
+                float coinZ = spacing * (i + 1);
+                float coinY = coinOriginalLocalPositions[i].y;
+
+                collectibles[i].transform.localPosition = new Vector3(laneX, coinY, coinZ);
+
+                // Roll buff replacements on active coins
+                if (buffPrefabs != null && buffPrefabs.Length > 0 && Random.value < buffSpawnChance)
                 {
-                    coinX = laneXPositions[Random.Range(0, laneXPositions.Length)];
-                }
-                else
-                {
-                    coinX = laneX;
-                }
+                    collectibles[i].gameObject.SetActive(false);
 
-                float coinZ = coinSpacing * (i + 1) + Random.Range(-0.5f, 0.5f);
-                float coinY = coinOriginalLocalPositions[i].y; // Keep original height
+                    GameObject selectedBuffPrefab = buffPrefabs[Random.Range(0, buffPrefabs.Length)];
+                    if (selectedBuffPrefab != null)
+                    {
+                        GameObject buffInstance = null;
+                        if (ObjectPool.Instance != null)
+                        {
+                            buffInstance = ObjectPool.Instance.Spawn(selectedBuffPrefab, collectibles[i].transform.position, Quaternion.identity);
+                            buffInstance.transform.SetParent(transform);
+                        }
+                        else
+                        {
+                            buffInstance = Instantiate(selectedBuffPrefab, collectibles[i].transform.position, Quaternion.identity, transform);
+                        }
 
-                collectibles[i].transform.localPosition = new Vector3(coinX, coinY, coinZ);
-            }
-        }
-
-        private void RandomizeObstacles()
-        {
-            if (obstacles == null || obstacles.Length == 0) return;
-
-            // Roll: should ANY obstacles appear this time?
-            if (Random.value > obstacleSpawnChance)
-            {
-                // No obstacles this run — disable all
-                foreach (Obstacle obs in obstacles)
-                {
-                    if (obs != null) obs.gameObject.SetActive(false);
-                }
-                return;
-            }
-
-            // Choose a random layout pattern
-            // Patterns ensure at least 1 lane is always open for the player to pass
-            int patternCount = 7;
-            int pattern = Random.Range(0, patternCount);
-
-            // Map obstacles by name to lanes (Left, Center, Right)
-            // Works with any number of obstacles, but optimized for 3 (Left, Center, Right)
-            bool[] activeState = new bool[obstacles.Length];
-
-            switch (pattern)
-            {
-                case 0: // Only left
-                    SetLanePattern(activeState, true, false, false);
-                    break;
-                case 1: // Only center
-                    SetLanePattern(activeState, false, true, false);
-                    break;
-                case 2: // Only right
-                    SetLanePattern(activeState, false, false, true);
-                    break;
-                case 3: // Left + Center (right lane open)
-                    SetLanePattern(activeState, true, true, false);
-                    break;
-                case 4: // Center + Right (left lane open)
-                    SetLanePattern(activeState, false, true, true);
-                    break;
-                case 5: // Left + Right (center lane open)
-                    SetLanePattern(activeState, true, false, true);
-                    break;
-                case 6: // All three (player must jump or use heavy iron to smash)
-                    SetLanePattern(activeState, true, true, true);
-                    break;
-            }
-
-            // Apply active states and jitter Z positions
-            for (int i = 0; i < obstacles.Length; i++)
-            {
-                if (obstacles[i] == null) continue;
-
-                obstacles[i].gameObject.SetActive(activeState[i]);
-
-                if (activeState[i] && obstacleZJitter > 0f)
-                {
-                    // Add random Z offset to original position for variety
-                    Vector3 jitteredPos = obstacleOriginalLocalPositions[i];
-                    jitteredPos.z += Random.Range(-obstacleZJitter, obstacleZJitter);
-                    obstacles[i].transform.localPosition = jitteredPos;
+                        if (buffInstance != null)
+                        {
+                            spawnedBuffs.Add(buffInstance);
+                        }
+                    }
                 }
             }
         }
 
-        private void SetLanePattern(bool[] states, bool left, bool center, bool right)
+        private float GetSegmentLength()
         {
-            // Assign based on obstacle index order (assumes Left=0, Center=1, Right=2)
-            // Gracefully handles fewer or more obstacles
-            for (int i = 0; i < states.Length; i++)
+            if (endPoint != null)
             {
-                if (i == 0) states[i] = left;
-                else if (i == 1) states[i] = center;
-                else if (i == 2) states[i] = right;
-                else states[i] = Random.value > 0.5f; // Extra obstacles: 50/50
+                float len = Mathf.Abs(endPoint.localPosition.z);
+                return len > 5f ? len : 20f;
             }
+            return 20f;
         }
     }
 }
