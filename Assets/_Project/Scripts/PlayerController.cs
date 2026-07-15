@@ -576,15 +576,22 @@ namespace PitchRush
         private bool CompareTagSafe(GameObject obj, string tagName)
         {
             if (obj == null) return false;
-            if (obj.name.Contains(tagName)) return true;
-            try
+
+            // Only check Unity tags if they are standard/pre-registered in this project
+            if (tagName == "Untagged" || tagName == "Player" || tagName == "Ground" || tagName == "Obstacle")
             {
-                return obj.CompareTag(tagName);
+                try
+                {
+                    return obj.CompareTag(tagName);
+                }
+                catch
+                {
+                    // Fallback to name check
+                }
             }
-            catch
-            {
-                return false;
-            }
+
+            // Fallback for custom tags: safe name comparison (never spams console!)
+            return obj.name.Contains(tagName);
         }
 
         private void OnCollisionStay(Collision collision)
