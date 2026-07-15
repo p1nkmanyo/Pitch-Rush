@@ -39,9 +39,15 @@ namespace PitchRush
 
         public void ApplyFormVisuals(BlobForm form)
         {
+            // Dynamically find renderer inside visualModel first to handle runtime restructuring (0 GC Alloc!)
+            PlayerController controller = GetComponent<PlayerController>();
+            if (controller != null && controller.visualModel != null)
+            {
+                playerRenderer = controller.visualModel.GetComponentInChildren<Renderer>();
+            }
+
             if (playerRenderer == null)
             {
-                // Fallback cache if not resolved in Awake
                 playerRenderer = GetComponentInChildren<Renderer>();
             }
 
