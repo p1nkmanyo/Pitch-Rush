@@ -302,6 +302,7 @@ namespace PitchRush
 
         public void SetForm(BlobForm form)
         {
+            if (isMercuryActive) return; // Ignore gate form changes while split in Mercury mode
             CurrentForm = form;
 
             if (rb == null) rb = GetComponent<Rigidbody>();
@@ -462,6 +463,17 @@ namespace PitchRush
             if (isMercuryActive) return;
             isMercuryActive = true;
 
+            // Apply chrome material to main player visually to match the clones (0 GC Alloc!)
+            Renderer mainRend = visualModel != null ? visualModel.GetComponentInChildren<Renderer>() : null;
+            if (mainRend != null)
+            {
+                Material chromeMat = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+                chromeMat.color = new Color(0.85f, 0.85f, 0.85f);
+                if (chromeMat.HasProperty("_Metallic")) chromeMat.SetFloat("_Metallic", 1f);
+                if (chromeMat.HasProperty("_Smoothness")) chromeMat.SetFloat("_Smoothness", 0.9f);
+                mainRend.material = chromeMat;
+            }
+
             // Reposition player to center lane (X = 0)
             targetX = 0f;
             transform.position = new Vector3(0f, transform.position.y, transform.position.z);
@@ -524,6 +536,17 @@ namespace PitchRush
                 }
             }
             activeClones.Clear();
+
+            // Restore original form material on main player
+            BlobCustomizer customizer = GetComponent<BlobCustomizer>();
+            if (customizer != null)
+            {
+                customizer.ApplyFormVisuals(CurrentForm);
+            }
+            else
+            {
+                SetSlimeColor(currentSlimeColor); // Fallback color
+            }
         }
 
         public void OnCloneDestroyed(MercuryClone clone)
