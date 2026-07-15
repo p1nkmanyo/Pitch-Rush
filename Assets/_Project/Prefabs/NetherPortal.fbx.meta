@@ -5,15 +5,25 @@ ModelImporter:
   internalIDToNameTable: []
   externalObjects:
   - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Obsidian_Block
+    second: {fileID: 2100000, guid: 9f489cab7c136eb458c9399f30ccc759, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Portal_Nether_Energy
+    second: {fileID: 2100000, guid: fba43c94ecb051d4897b3e897dcab338, type: 2}
+  - first:
       type: UnityEngine:Texture2D
       assembly: UnityEngine.CoreModule
       name: obsidian_pixel_texture
-    second: {fileID: 2800000, guid: 0e470e17cdecadb40802fe3e1a52654e, type: 3}
+    second: {fileID: 2800000, guid: a63e853b77b9dd14098215b0c4b2b335, type: 3}
   - first:
       type: UnityEngine:Texture2D
       assembly: UnityEngine.CoreModule
       name: portal_pixel_energy
-    second: {fileID: 2800000, guid: ebc473a7d427d9042843d5500753246e, type: 3}
+    second: {fileID: 2800000, guid: e05a2bd67d11072458816b4cf95f7160, type: 3}
   materials:
     materialImportMode: 2
     materialName: 0
